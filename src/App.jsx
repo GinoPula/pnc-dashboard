@@ -8,6 +8,8 @@ import Maquinaria from './pages/Maquinaria'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { fmt, pct } from './utils/data'
 import './index.css'
+import { MvcsLogo } from './components/MvcsLogo'
+import { Footer } from './components/Footer'
 
 const TABS = [
   {id:'gerencial', label:'🏛', full:'Gerencial'},
@@ -106,7 +108,25 @@ export default function App() {
   // ── UPLOAD ──────────────────────────────────────────
   if (!data.raw.length && !data.loading) {
     return (
-      <div className={`min-h-screen flex flex-col items-center justify-center p-4 sm:p-8 gap-4 ${dark?'dark bg-slate-900':'bg-slate-50'}`}>
+      <div className={`min-h-screen flex flex-col ${dark?'dark bg-slate-900':'bg-slate-50'}`}>
+        {/* Header en pantalla de carga */}
+        <header>
+          <div className="bg-red-700 h-1 w-full"/>
+          <div className="bg-[#1F3864] px-4 py-2 flex items-center gap-3">
+            <MvcsLogo size="sm"/>
+            <div className="w-px h-8 bg-blue-600 hidden sm:block"/>
+            <div className="hidden sm:block">
+              <div className="text-xs font-bold text-white">Dashboard PNC Maquinarias</div>
+              <div className="text-xs text-blue-300">Programa Nuestras Ciudades</div>
+            </div>
+            <div className="flex-1"/>
+            <button onClick={()=>setDark(!dark)} className="text-blue-200 text-xs border border-blue-600 px-2 py-1 rounded">
+              {dark?'☀️':'🌙'}
+            </button>
+          </div>
+          <div className="bg-gradient-to-r from-red-700 via-blue-800 to-red-700 h-0.5 w-full"/>
+        </header>
+        <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 gap-4">
         <div ref={dropRef}
           className="bg-white dark:bg-slate-800 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl p-8 sm:p-12 text-center max-w-lg w-full cursor-pointer hover:border-blue-400 transition-all"
           onClick={()=>document.getElementById('fi').click()}
@@ -128,7 +148,9 @@ export default function App() {
         <div className="bg-blue-50 dark:bg-slate-800 border border-blue-200 dark:border-slate-600 rounded-xl p-3 max-w-lg w-full text-xs text-slate-600 dark:text-slate-400">
           <strong>💡 Multi-archivo:</strong> Selecciona el Excel de intervenciones + el inventario de maquinarias juntos. El sistema detecta automáticamente cuál es cuál.
         </div>
-        <input id="fi" type="file" accept=".xlsx,.xls" multiple className="hidden" onChange={e=>handleFiles(e.target.files)}/>
+          <input id="fi" type="file" accept=".xlsx,.xls" multiple className="hidden" onChange={e=>handleFiles(e.target.files)}/>
+        </div>
+        <Footer/>
       </div>
     )
   }
@@ -147,18 +169,42 @@ export default function App() {
   return (
     <div className={`min-h-screen ${dark?'dark bg-slate-900 text-slate-100':'bg-slate-50 text-slate-900'}`}>
 
-      {/* TOPBAR — responsive */}
-      <div className="bg-[#1F3864] px-3 sm:px-4 py-2 flex items-center gap-2 sm:gap-3 sticky top-0 z-40">
-        <span className="bg-blue-500 text-white text-xs font-bold px-2 py-0.5 rounded flex-shrink-0">PNC</span>
-        <span className="text-xs sm:text-sm font-medium text-blue-200 flex-1 truncate hidden sm:block">{data.fileName}</span>
-        <span className="text-xs text-blue-300 flex-shrink-0 hidden sm:block">{data.raw.length.toLocaleString()} reg.</span>
-        <button onClick={()=>setDark(!dark)} className="text-blue-200 hover:text-white text-xs border border-blue-400 px-2 py-1 rounded flex-shrink-0">
-          {dark?'☀️':'🌙'}
-        </button>
-        <button onClick={data.reset} className="text-blue-200 hover:text-white text-xs border border-blue-400 px-2 py-1 rounded flex-shrink-0">
-          📂
-        </button>
-      </div>
+      {/* HEADER INSTITUCIONAL MVCS */}
+      <header className="sticky top-0 z-40">
+        {/* Franja roja superior - igual al sistema MVCS */}
+        <div className="bg-red-700 h-1 w-full"/>
+        {/* Barra principal azul marino */}
+        <div className="bg-[#1F3864] px-3 sm:px-5 py-2 flex items-center gap-3">
+          {/* Logo MVCS */}
+          <MvcsLogo size="sm"/>
+          {/* Separador vertical */}
+          <div className="w-px h-8 bg-blue-600 hidden sm:block flex-shrink-0"/>
+          {/* Título del sistema */}
+          <div className="hidden sm:block flex-shrink-0">
+            <div className="text-xs font-bold text-white leading-none">Dashboard PNC Maquinarias</div>
+            <div className="text-xs text-blue-300 leading-none mt-0.5 truncate max-w-[200px]">{data.fileName || 'Carga tu Excel para comenzar'}</div>
+          </div>
+          {/* Spacer */}
+          <div className="flex-1"/>
+          {/* Registros */}
+          {data.raw.length > 0 && (
+            <span className="text-xs text-blue-300 hidden sm:block flex-shrink-0">
+              {data.raw.length.toLocaleString()} registros
+            </span>
+          )}
+          {/* Acciones */}
+          <button onClick={()=>setDark(!dark)}
+            className="text-blue-200 hover:text-white text-xs border border-blue-600 px-2 py-1 rounded flex-shrink-0 transition-colors">
+            {dark?'☀️ Claro':'🌙 Oscuro'}
+          </button>
+          <button onClick={data.reset}
+            className="text-blue-200 hover:text-white text-xs border border-blue-600 px-2 py-1 rounded flex-shrink-0 transition-colors">
+            📂 Nuevo
+          </button>
+        </div>
+        {/* Línea inferior decorativa */}
+        <div className="bg-gradient-to-r from-red-700 via-blue-800 to-red-700 h-0.5 w-full"/>
+      </header>
 
       {/* FILTER BAR — scrollable on mobile */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-3 sm:px-4 py-2 overflow-x-auto sticky top-10 z-30">
@@ -191,7 +237,7 @@ export default function App() {
         {tab==='gerencial'    && <Gerencial    filtered={data.filtered} stats={data.stats}/>}
         {tab==='resumen'      && <Resumen      filtered={data.filtered} stats={data.stats}/>}
         {tab==='detalle'      && <Detalle      filtered={data.filtered} raw={data.raw}/>}
-        {tab==='maquinaria'   && <Maquinaria   inventario={data.inventario}/>}
+        {tab==='maquinaria'   && <Maquinaria   inventario={data.inventario} raw={data.raw}/>}
         {tab==='distribucion' && <Distribucion filtered={data.filtered} inventario={data.inventario} raw={data.raw}/>}
       </div>
 
@@ -216,6 +262,8 @@ export default function App() {
         </div>
       )}
 
+      {/* Footer institucional */}
+      <Footer/>
       {/* Espaciado inferior en mobile para el nav */}
       <div className="h-14 sm:hidden"/>
     </div>

@@ -89,7 +89,19 @@ export function procesarIntervenciones(rows) {
       f_ini:fi.slice(0,10), f_fin:ff.slice(0,10), anio, mes,
       maquinas:parseMaquinas(maq_str), maq_str,
       tiene_cierre:!!(numCierre&&numCierre!=='nan'),
-      num_cierre:numCierre!=='nan'?numCierre:'', enlace_cierre:sv(r.ENLACE_INFO_CIERRE),
+      num_cierre:numCierre!=='nan'?numCierre:'',
+      enlace_cierre:sv(r.ENLACE_INFO_CIERRE),
+      fecha_entrega_cierre:sv(r.FECHA_ENTREGA_INFO_CIERRE),
+      monto_contratado:sf(r.MONTO_CONTRATADO),
+      monto_ejecutado:sf(r.MONTO_EJECUTADO),
+      monto_comb_ap:sf(r.MONTO_COMBUSTIBLE_APORTES),
+      monto_comb_mv:sf(r.MONTO_COMBUSTIBLE_MVCS),
+      monto_pers_ap:sf(r.MONTO_PERSONAL_APORTES),
+      monto_pers_mv:sf(r.MONTO_PERSONAL_MVCS),
+      sec_funcional:sv(r.SEC_FUNCIONAL),
+      porc_km:sf(r.PORC_KM),
+      acum_km_raw:sf(r.ACUMULADO_KM),
+      cod_emergencia:sv(r.COD_EMERGENCIA),
     }
   }).filter(r=>{
     if (!r.dep) return false

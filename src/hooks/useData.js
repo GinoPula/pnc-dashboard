@@ -40,9 +40,17 @@ export function useData() {
 
     const intervenciones = procesarIntervenciones(allData)
     const codigosEnUso = new Set(intervenciones.flatMap(r => r.maquinas.map(m => m.cod)))
+    // Mapear fichas por código de equipo
+    const fichasPorCodigo = {}
+    intervenciones.forEach(r => {
+      r.maquinas.forEach(m => {
+        if (!fichasPorCodigo[m.cod]) fichasPorCodigo[m.cod] = []
+        fichasPorCodigo[m.cod].push({ ficha: r.ficha, num: r.num, ubo: r.ubo, dep: r.dep, estado: r.estado, enlace_ficha: r.enlace_ficha, f_ini: r.f_ini, f_fin: r.f_fin })
+      })
+    })
     const inv = invData.length > 0
-      ? procesarInventario(invData, codigosEnUso)
-      : inventario.map(e => ({ ...e, en_uso: codigosEnUso.has(e.codigo), disponible: !codigosEnUso.has(e.codigo), estado_uso: codigosEnUso.has(e.codigo) ? 'EN USO' : 'DISPONIBLE' }))
+      ? procesarInventario(invData, codigosEnUso).map(e => ({ ...e, fichas_intervencion: fichasPorCodigo[e.codigo] || [] }))
+      : inventario.map(e => ({ ...e, en_uso: codigosEnUso.has(e.codigo), disponible: !codigosEnUso.has(e.codigo), estado_uso: codigosEnUso.has(e.codigo) ? 'EN USO' : 'DISPONIBLE', fichas_intervencion: fichasPorCodigo[e.codigo] || [] }))
 
     setRaw(intervenciones)
     if (inv.length > 0) setInventario(inv)
