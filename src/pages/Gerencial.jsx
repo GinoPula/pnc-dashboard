@@ -35,7 +35,7 @@ export default function Gerencial({ filtered, stats }) {
     <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-extrabold text-[#1F3864] dark:text-blue-300">Estado de Maquinarias</h1>
+        <h1 className="text-xl font-extrabold text-[#1F3864] text-blue-700">Estado de Maquinarias</h1>
         <p className="text-xs text-slate-500">Programa Nuestras Ciudades · MVCS</p>
       </div>
 
@@ -66,7 +66,7 @@ export default function Gerencial({ filtered, stats }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {/* Gauge */}
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+        <div className="bg-white bg-white border border-slate-200 border-slate-200 rounded-xl p-4">
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">% Ejecución global</div>
           <div className="flex flex-col items-center">
             <svg width="220" height="130" viewBox="0 0 220 130">
@@ -79,7 +79,7 @@ export default function Gerencial({ filtered, stats }) {
         </div>
 
         {/* Por estado */}
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+        <div className="bg-white bg-white border border-slate-200 border-slate-200 rounded-xl p-4">
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Por estado</div>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart><Pie data={estData} dataKey="v" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={85}>
@@ -91,7 +91,7 @@ export default function Gerencial({ filtered, stats }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {/* Top departamentos */}
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+        <div className="bg-white bg-white border border-slate-200 border-slate-200 rounded-xl p-4">
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Top departamentos</div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={depData} margin={{left:0,right:10}}>
@@ -104,7 +104,7 @@ export default function Gerencial({ filtered, stats }) {
         </div>
 
         {/* Tipo actividad */}
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+        <div className="bg-white bg-white border border-slate-200 border-slate-200 rounded-xl p-4">
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Por tipo de actividad</div>
           <ResponsiveContainer width="100%" height={220}>
             <PieChart><Pie data={actData} dataKey="v" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={80}>

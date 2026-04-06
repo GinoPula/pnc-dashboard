@@ -1,37 +1,34 @@
 @import "tailwindcss";
-* { box-sizing: border-box; }
-body { font-family: 'Segoe UI', system-ui, sans-serif; }
 
-/* Mobile scrollbar hide */
+/* ── MVCS Institucional — Solo modo claro ─────────── */
+* { box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: #F1F5F9;
+  color: #1E293B;
+}
+
+/* Forzar modo claro siempre */
+.dark { --tw-bg-opacity: 1; }
+
+/* Scrollbar oculto en mobile */
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* Touch improvements */
+/* Touch */
 button, select { touch-action: manipulation; }
-
-/* Tables scroll on mobile */
-.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-
-/* Viewport meta fix */
-@media (max-width: 640px) {
-  .text-4xl { font-size: 2rem; }
-  .text-3xl { font-size: 1.5rem; }
-}
 
 /* PWA Install Banner */
 .pwa-banner {
   position: fixed;
-  bottom: 70px;
-  left: 50%;
+  bottom: 70px; left: 50%;
   transform: translateX(-50%);
   background: #1F3864;
   color: white;
   padding: 10px 16px;
   border-radius: 12px;
   font-size: 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: flex; align-items: center; gap: 10px;
   z-index: 100;
   box-shadow: 0 4px 20px rgba(0,0,0,0.3);
   max-width: 320px;
@@ -43,22 +40,33 @@ button, select { touch-action: manipulation; }
   to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
 }
 .pwa-banner button.install {
-  background: #10B981;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
+  background: #10B981; color: white; border: none;
+  padding: 6px 12px; border-radius: 8px;
+  font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap;
 }
 .pwa-banner button.close {
-  background: transparent;
-  color: #93C5FD;
-  border: none;
-  cursor: pointer;
-  font-size: 16px;
-  padding: 0 4px;
-  margin-left: auto;
+  background: transparent; color: #93C5FD; border: none;
+  cursor: pointer; font-size: 16px; padding: 0 4px; margin-left: auto;
 }
+
+/* Chips de maquinaria */
+.chip-maq {
+  display: inline-block;
+  background: #F3F0FF; border: 1px solid #C4B5FD;
+  color: #5B21B6; padding: 2px 8px; border-radius: 4px;
+  font-size: 9px; font-weight: 500; margin: 1px;
+}
+
+/* Tabla base */
+.tbl-base { width: 100%; border-collapse: collapse; }
+.tbl-base th {
+  background: #1F3864; color: white;
+  padding: 8px 10px; text-align: left;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.tbl-base td {
+  padding: 7px 10px; border-bottom: 1px solid #F1F5F9;
+  font-size: 11px; color: #334155; vertical-align: middle;
+}
+.tbl-base tr:nth-child(even) td { background: #F8FAFC; }
+.tbl-base tr:hover td { background: #EFF6FF; }

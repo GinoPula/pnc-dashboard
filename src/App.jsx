@@ -79,7 +79,7 @@ function Resumen({ filtered, stats }) {
 export default function App() {
   const data = useData()
   const [tab, setTab] = useState('gerencial')
-  const [dark, setDark] = useState(false)
+  // Modo claro fijo — identidad visual MVCS
   const [menuOpen, setMenuOpen] = useState(false)
   const [installPrompt, setInstallPrompt] = useState(null)
   const [showInstall, setShowInstall] = useState(false)
@@ -108,7 +108,7 @@ export default function App() {
   // ── UPLOAD ──────────────────────────────────────────
   if (!data.raw.length && !data.loading) {
     return (
-      <div className={`min-h-screen flex flex-col ${dark?'dark bg-slate-900':'bg-slate-50'}`}>
+      <div className="min-h-screen flex flex-col bg-slate-100">
         {/* Header en pantalla de carga */}
         <header>
           <div className="bg-red-700 h-1 w-full"/>
@@ -120,9 +120,7 @@ export default function App() {
               <div className="text-xs text-blue-300">Programa Nuestras Ciudades</div>
             </div>
             <div className="flex-1"/>
-            <button onClick={()=>setDark(!dark)} className="text-blue-200 text-xs border border-blue-600 px-2 py-1 rounded">
-              {dark?'☀️':'🌙'}
-            </button>
+
           </div>
           <div className="bg-gradient-to-r from-red-700 via-blue-800 to-red-700 h-0.5 w-full"/>
         </header>
@@ -158,7 +156,7 @@ export default function App() {
   // ── LOADING ─────────────────────────────────────────
   if (data.loading) {
     return (
-      <div className={`min-h-screen flex flex-col items-center justify-center gap-4 ${dark?'dark bg-slate-900':'bg-slate-50'}`}>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-100">
         <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-500 rounded-full animate-spin"/>
         <p className="text-sm text-slate-500 text-center px-4">{data.loadingTxt}</p>
       </div>
@@ -167,7 +165,7 @@ export default function App() {
 
   // ── DASHBOARD ────────────────────────────────────────
   return (
-    <div className={`min-h-screen ${dark?'dark bg-slate-900 text-slate-100':'bg-slate-50 text-slate-900'}`}>
+    <div className="min-h-screen bg-slate-100 text-slate-900">
 
       {/* HEADER INSTITUCIONAL MVCS */}
       <header className="sticky top-0 z-40">
@@ -193,10 +191,7 @@ export default function App() {
             </span>
           )}
           {/* Acciones */}
-          <button onClick={()=>setDark(!dark)}
-            className="text-blue-200 hover:text-white text-xs border border-blue-600 px-2 py-1 rounded flex-shrink-0 transition-colors">
-            {dark?'☀️ Claro':'🌙 Oscuro'}
-          </button>
+
           <button onClick={data.reset}
             className="text-blue-200 hover:text-white text-xs border border-blue-600 px-2 py-1 rounded flex-shrink-0 transition-colors">
             📂 Nuevo
@@ -223,7 +218,7 @@ export default function App() {
         <div className="flex overflow-x-auto px-2 sm:px-4 scrollbar-hide">
           {TABS.map(t=>(
             <button key={t.id} onClick={()=>setTab(t.id)}
-              className={`flex items-center gap-1 px-2 sm:px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition-all flex-shrink-0 ${tab===t.id?'border-blue-500 text-[#1F3864] dark:text-blue-400 font-bold':'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+              className={`flex items-center gap-1 px-2 sm:px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition-all flex-shrink-0 ${tab===t.id?'border-[#CC1C2C] text-[#CC1C2C] font-bold':'border-transparent text-slate-500 hover:text-slate-700 hover:text-slate-600'}`}>
               <span>{t.label}</span>
               {/* Texto completo en sm+, solo icono en mobile */}
               <span className="hidden sm:inline">{t.full}</span>
@@ -237,7 +232,7 @@ export default function App() {
         {tab==='gerencial'    && <Gerencial    filtered={data.filtered} stats={data.stats}/>}
         {tab==='resumen'      && <Resumen      filtered={data.filtered} stats={data.stats}/>}
         {tab==='detalle'      && <Detalle      filtered={data.filtered} raw={data.raw}/>}
-        {tab==='maquinaria'   && <Maquinaria   inventario={data.inventario} raw={data.raw}/>}
+        {tab==='maquinaria'   && <Maquinaria   inventario={data.inventario} raw={data.raw} curUBO={data.curUBO}/>}
         {tab==='distribucion' && <Distribucion filtered={data.filtered} inventario={data.inventario} raw={data.raw}/>}
       </div>
 

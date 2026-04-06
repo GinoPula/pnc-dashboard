@@ -9,9 +9,9 @@ export function KpiCard({ label, value, sub, color = 'blue', size = 'md' }) {
   }
   const valSize = size === 'lg' ? 'text-4xl' : size === 'sm' ? 'text-lg' : 'text-2xl'
   return (
-    <div className={`bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 border-t-4 ${colors[color]} rounded-xl p-3`}>
-      <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">{label}</div>
-      <div className={`${valSize} font-extrabold text-slate-800 dark:text-slate-100 leading-none`}>{value}</div>
+    <div className={`bg-white border border-slate-200 border-t-4 ${colors[color]} rounded-xl p-3 shadow-sm`}>
+      <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">{label}</div>
+      <div className={`${valSize} font-extrabold text-slate-800 leading-none`}>{value}</div>
       {sub && <div className="text-xs text-slate-400 mt-1">{sub}</div>}
     </div>
   )
@@ -124,7 +124,7 @@ export function SidePanel({ row, onClose, EST_FICHA_LBL, EST_FICHA_COLS }) {
   return (
     <>
       <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose}/>
-      <div className="fixed top-0 right-0 w-full sm:w-[460px] h-full bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-700 z-50 overflow-y-auto shadow-2xl">
+      <div className="fixed top-0 right-0 w-full sm:w-[460px] h-full bg-white bg-white border-l border-slate-200 border-slate-200 z-50 overflow-y-auto shadow-2xl">
         {/* Header */}
         <div className="bg-[#1F3864] px-4 py-3 sticky top-0">
           <div className="flex items-start justify-between gap-2 mb-1">
@@ -204,8 +204,8 @@ export function SidePanel({ row, onClose, EST_FICHA_LBL, EST_FICHA_COLS }) {
             <Row label="Supervisor" value={row.supervisor||'No asignado'}/>
           </Section>
 
-          {row.descripcion && <Section title="Descripción"><p className="text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-lg p-2 leading-relaxed">{row.descripcion}</p></Section>}
-          {row.obs && <Section title="Observación"><p className="text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-lg p-2 leading-relaxed">{row.obs}</p></Section>}
+          {row.descripcion && <Section title="Descripción"><p className="text-xs text-slate-600 dark:text-slate-400 bg-slate-50 bg-white rounded-lg p-2 leading-relaxed">{row.descripcion}</p></Section>}
+          {row.obs && <Section title="Observación"><p className="text-xs text-slate-600 dark:text-slate-400 bg-slate-50 bg-white rounded-lg p-2 leading-relaxed">{row.obs}</p></Section>}
         </div>
       </div>
     </>
@@ -214,7 +214,7 @@ export function SidePanel({ row, onClose, EST_FICHA_LBL, EST_FICHA_COLS }) {
 
 function Section({ title, children }) {
   return (
-    <div className="border-b border-slate-100 dark:border-slate-700 pb-3">
+    <div className="border-b border-slate-100 border-slate-200 pb-3">
       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">{title}</div>
       {children}
     </div>
@@ -224,7 +224,7 @@ function Row({ label, value }) {
   return (
     <div className="flex gap-2 mb-1.5 items-start">
       <span className="text-xs text-slate-500 dark:text-slate-400 min-w-[120px] flex-shrink-0">{label}</span>
-      <span className="text-xs text-slate-800 dark:text-slate-200 font-medium flex-1">{value}</span>
+      <span className="text-xs text-slate-800 text-slate-800 font-medium flex-1">{value}</span>
     </div>
   )
 }

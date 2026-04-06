@@ -135,13 +135,13 @@ export default function Detalle({ filtered, raw }) {
     w.onload = () => { w.focus(); w.print() }
   }, [rows, estSel, cierreFiltro])
 
-  const sel = 'text-xs border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-200'
+  const sel = 'text-xs border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white bg-white text-slate-800'
 
   return (
     <div className="p-3 sm:p-4">
       {/* Controles */}
       <div className="flex flex-wrap gap-2 mb-3 items-center">
-        <input className="flex-1 min-w-[180px] text-xs border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 dark:bg-slate-800 dark:text-slate-200"
+        <input className="flex-1 min-w-[180px] text-xs border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 bg-white text-slate-800"
           placeholder="Buscar N°, UBO, departamento, ficha..." value={busq} onChange={e=>setBusq(e.target.value)}/>
         <select className={sel} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
           {SORT_OPTS.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
@@ -171,16 +171,16 @@ export default function Detalle({ filtered, raw }) {
       </p>
 
       {/* Tabla */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 border-slate-200">
         <table className="w-full text-xs min-w-[1100px]">
-          <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
+          <thead className="bg-slate-50 bg-white sticky top-0">
             <tr>{['N°','UBO','Depto.','Provincia','Tipo','Marco Legal','Estado','Avance%','M³ ejec.','Inicio','Fin','Ficha técnica','Cierre','Unidad / Maquinaria'].map(h=>(
-              <th key={h} className="px-2 py-2 text-left text-xs font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap border-b border-slate-200 dark:border-slate-700">{h}</th>
+              <th key={h} className="px-2 py-2 text-left text-xs font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap border-b border-slate-200 border-slate-200">{h}</th>
             ))}</tr>
           </thead>
           <tbody>
             {rows.slice(0,500).map((r,i)=>(
-              <tr key={i} onClick={()=>setPanel(r)} className="hover:bg-blue-50 dark:hover:bg-slate-800 cursor-pointer border-b border-slate-100 dark:border-slate-700 transition-colors">
+              <tr key={i} onClick={()=>setPanel(r)} className="hover:bg-blue-50 hover:bg-blue-50 cursor-pointer border-b border-slate-100 border-slate-200 transition-colors">
                 <td className="px-2 py-1.5 font-mono font-bold text-[#1F3864]">{r.num||'—'}</td>
                 <td className="px-2 py-1.5 font-semibold">{r.ubo}</td>
                 <td className="px-2 py-1.5">{r.dep}</td>
@@ -207,7 +207,7 @@ export default function Detalle({ filtered, raw }) {
             ))}
           </tbody>
         </table>
-        <div className="px-3 py-2 bg-slate-50 dark:bg-slate-800 text-xs text-slate-400 border-t border-slate-200">
+        <div className="px-3 py-2 bg-slate-50 bg-white text-xs text-slate-400 border-t border-slate-200">
           {rows.length>500?`Mostrando 500 de ${rows.length.toLocaleString()}`:`Total: ${rows.length.toLocaleString()} registros`}
         </div>
       </div>
