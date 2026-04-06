@@ -7,6 +7,8 @@ export default function Distribucion({ filtered, inventario, raw }) {
   const [uboSel, setUboSel] = useState('TODOS')
   const [estSel, setEstSel] = useState('EN EJECUCIÓN')
   const [panel, setPanel] = useState(null)
+  const [vistaActiva, setVistaActiva] = useState('INTERVENCIONES') 
+  // Vistas: INTERVENCIONES | TOTAL_USO | MP | VP | DISPONIBLES
 
   const ubosDisp = useMemo(() => {
     return [...new Set([
@@ -51,6 +53,31 @@ export default function Distribucion({ filtered, inventario, raw }) {
   const vpUso = totalEnUso - mpUso
   const totalMP = invDisp.filter(e => e.clasificacion === 'MP').length
   const totalVP = invDisp.filter(e => e.clasificacion === 'VP').length
+
+  // Datos expandidos para cada vista de KPI
+  // Total unidades en uso — lista de todos los equipos asignados en intervenciones
+  const unidadesEnUso = useMemo(() => {
+    const lista = []
+    interv.forEach(r => {
+      r.maquinas.forEach(m => {
+        const eqInv = inventario.find(e => e.codigo === m.cod)
+        lista.push({
+          cod: m.cod, tipo: m.tipo,
+          ubo: r.ubo, dep: r.dep, prov: r.prov, dist: r.dist,
+          ficha: r.ficha, estado: r.estado, f_ini: r.f_ini, f_fin: r.f_fin,
+          clasificacion: eqInv?.clasificacion || (/EXCAVADORA|TRACTOR|CARGADOR|RETROEXCAVADORA|MOTONIVELADORA|RODILLO/i.test(m.tipo) ? 'MP' : 'VP'),
+          marca: eqInv?.marca || '', modelo: eqInv?.modelo || '',
+          estado_maq: eqInv?.estado_maq || 'OPERATIVO',
+          comentario: eqInv?.comentario || '',
+          intervencion: r,
+        })
+      })
+    })
+    return lista
+  }, [interv, inventario])
+
+  const unidadesMP = useMemo(() => unidadesEnUso.filter(u => u.clasificacion === 'MP'), [unidadesEnUso])
+  const unidadesVP = useMemo(() => unidadesEnUso.filter(u => u.clasificacion === 'VP'), [unidadesEnUso])
 
   const fecha = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const hora = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
@@ -142,6 +169,118 @@ export default function Distribucion({ filtered, inventario, raw }) {
     XLSX.writeFile(wb, `PNC_Distribucion_${new Date().toISOString().slice(0,10)}.xlsx`)
   }, [interv, invDisp, uboSel, ubosDisp, fecha, hora])
 
+  // ── EXPORT AYUDA MEMORIA ─────────────────────────────
+  const exportAyudaMemoria = useCallback(async () => {
+    const uboNombre = uboSel !== 'TODOS' ? uboSel : 'NACIONAL'
+    const fechaDoc = new Date().toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric'})
+    const CR='CC0000', CN='1F3864', LG='F1F5F9', WH='FFFFFF'
+    const fmtN=(n)=>n==null||isNaN(n)?'0':Number(n).toLocaleString('es-PE',{maximumFractionDigits:0})
+
+    // Intervenciones del UBO seleccionado
+    const allUBO = uboSel!=='TODOS' ? filtered.filter(r=>r.ubo===uboSel) : filtered
+    const ejecutadas = allUBO.filter(r=>r.estado==='EJECUTADA')
+    const enEjecucion = allUBO.filter(r=>r.estado.normalize('NFC')==='EN EJECUCIÓN')
+    const programadas = allUBO.filter(r=>r.estado_g==='PROGRAMADA')
+    const paralizadas = allUBO.filter(r=>r.estado==='PARALIZADA')
+
+    const ejec_act={}, ejec_en_act={}
+    ejecutadas.forEach(r=>{const k=r.act_label||r.cod_act;if(!ejec_act[k])ejec_act[k]=[];ejec_act[k].push(r)})
+    enEjecucion.forEach(r=>{const k=r.act_label||r.cod_act;if(!ejec_en_act[k])ejec_en_act[k]=[];ejec_en_act[k].push(r)})
+
+    const prog_mes={}
+    programadas.forEach(r=>{const m=r.estado.replace('PROGRAMADA ','');if(!prog_mes[m])prog_mes[m]=[];prog_mes[m].push(r)})
+    const primerMes=Object.keys(prog_mes)[0]
+    const progProx=primerMes?prog_mes[primerMes]:[]
+
+    const m3Total=ejecutadas.reduce((a,r)=>a+(r.m3||0),0)
+    const pobTotal=ejecutadas.reduce((a,r)=>a+(r.pob||0),0)
+
+    // Generar HTML que se descarga y se puede abrir en Word
+    const mesesOrd=['MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SETIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']
+    const buildActRows=(actObj)=>Object.entries(actObj).map(([lbl,ints])=>{
+      const provs=[...new Set(ints.map(r=>r.prov).filter(Boolean))]
+      const m3=ints.reduce((a,r)=>a+(r.m3||0),0)
+      const pob=ints.reduce((a,r)=>a+(r.pob||0),0)
+      let txt=`${ints.length} intervención${ints.length>1?'es':''} de ${lbl}`
+      if(provs.length)txt+=`, en la${provs.length>1?'s':''} provincia${provs.length>1?'s':''} de ${provs.join(', ')}`
+      if(m3>0)txt+=`, removiendo ${fmtN(m3)} m³ de material sedimentado`
+      if(pob>0)txt+=`, beneficiando a ${fmtN(pob)} habitantes`
+      return txt+'.'
+    }).map(t=>`<li>${t}</li>`).join('')
+
+    const tablaProx = progProx.length>0 ? `
+      <table><thead><tr><th>DEPART.</th><th>PROVINCIA</th><th>DISTRITO</th><th>SECTOR</th><th>FICHA TEC.</th><th>DESCRIPCIÓN</th><th>FECHA INICIO</th><th>FECHA FIN</th><th>META VOL</th><th>META KM</th><th>POB. BENEF.</th></tr></thead>
+      <tbody>${progProx.map((r,i)=>`<tr class="${i%2===0?'even':''}"><td>${r.dep}</td><td>${r.prov}</td><td>${r.dist}</td><td>${r.sector||''}</td><td>${r.ficha}</td><td>${(r.descripcion||'').slice(0,50)}</td><td>${r.f_ini}</td><td>${r.f_fin}</td><td>${r.meta_vol!=null?fmtN(r.meta_vol):''}</td><td>${r.meta_km!=null?r.meta_km.toFixed(2):''}</td><td>${r.pob!=null?fmtN(r.pob):''}</td></tr>`).join('')}</tbody></table>
+    ` : ''
+
+    const html=`<!DOCTYPE html>
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><meta charset='UTF-8'><meta name=ProgId content=Word.Document><meta name=Generator content='Microsoft Word 15'>
+<style>
+@page{margin:2.5cm 2cm 2cm 3cm}
+body{font-family:Arial,sans-serif;font-size:11pt;color:#000;line-height:1.4;margin:0}
+.header-inst{font-size:8pt;color:#64748B;border-bottom:2px solid #CC0000;padding-bottom:4pt;margin-bottom:16pt}
+.header-inst b{color:#CC0000}
+.header-inst .prog{color:#1F3864;font-weight:bold}
+.fecha{font-size:10pt;color:#CC0000;margin-bottom:8pt;text-align:left}
+.titulo{font-size:14pt;font-weight:bold;color:#CC0000;margin:12pt 0 16pt 0;text-align:left}
+.seccion{font-size:11pt;font-weight:bold;color:#CC0000;margin:16pt 0 8pt 0}
+.seccion-region{font-size:12pt;font-weight:bold;color:#CC0000;margin:16pt 0 8pt 0}
+p{margin:4pt 0;text-align:justify}
+ul{margin:4pt 0;padding-left:20pt}
+li{margin:3pt 0}
+table{width:100%;border-collapse:collapse;margin:8pt 0;font-size:8pt}
+th{background:#1F3864;color:#fff;padding:4pt 5pt;text-align:left;font-size:7.5pt;font-weight:bold}
+td{padding:3pt 5pt;border-bottom:1px solid #F1F5F9;vertical-align:top}
+tr.even td{background:#F1F5F9}
+.kpi-table{width:55%}
+.kpi-table td:last-child{text-align:right;font-weight:bold;color:#1F3864}
+</style></head>
+<body>
+<div class="header-inst"><b>PERÚ</b> &nbsp;|&nbsp; Ministerio de Vivienda, Construcción y Saneamiento &nbsp;|&nbsp; Viceministerio de Vivienda y Urbanismo &nbsp;|&nbsp; <span class="prog">Programa Nuestras Ciudades</span></div>
+<div class="fecha">${fechaDoc}</div>
+<div class="titulo">PNC MAQUINARIAS EN EL DEPARTAMENTO DE ${uboNombre}</div>
+<div class="seccion">Antecedentes.</div>
+<p><b>PNC-MAQUINARIAS</b> del Programa Nuestras Ciudades realiza trabajos de prevención y mitigación de riesgos a nivel nacional para proteger a las poblaciones más vulnerables del país. Este pool de maquinaria está a disposición para realizar trabajos de prevención y atender emergencias causadas por fenómenos naturales o climatológicos como huaicos, desbordes de ríos, sismos y terremotos.</p>
+<p><b>PNC-MAQUINARIAS</b> realiza intervenciones de PREVENCIÓN, URGENCIA (Intervenciones que se realizan por un acuerdo de concejo) e intervenciones de EMERGENCIA (Requiere Decreto de Emergencia PCM). Las intervenciones se realizan en zonas donde existen viviendas, para protección de equipamiento e infraestructura urbana.</p>
+<p><b>Principales Actividades.</b></p>
+<ul>
+<li>Limpieza y descolmatación de drenes, quebradas, canales y ríos y conformación de diques de protección, hasta garantizar la escorrentía y desfogue de las aguas.</li>
+<li>Limpieza de escombros por desastres y nivelación de terrenos para damnificados.</li>
+<li>Mejoramiento de la transitabilidad de calles y vías de acceso dentro de centros poblados urbanos y rurales.</li>
+<li>Abastecimiento y distribución de agua potable.</li>
+</ul>
+<p>Las intervenciones del programa se realizan a solicitud de las autoridades distritales, provinciales y regionales, con el fin de salvaguardar la vida de las personas, proteger sus bienes y reducir el impacto de los desastres naturales.</p>
+<p>Actualmente, el PNC Maquinarias cuenta con <b>19 UBOs</b> ubicadas en los departamentos de Lima, Ayacucho, Cusco, Ancash, Ica, Piura, La Libertad, Lambayeque, Cajamarca, San Martín, Loreto, Amazonas, Huánuco, Puno, Apurímac, Arequipa, Junín, Tacna y Tumbes.</p>
+
+<div class="seccion-region">Intervenciones de PNC Maquinarias en la región <span>${uboNombre}</span>.</div>
+
+${ejecutadas.length>0?`<p>Durante el 2026, el PNC Maquinarias en la región <b>${uboNombre}</b> ha ejecutado <b>${ejecutadas.length}</b> intervenciones.</p><ul>${buildActRows(ejec_act)}</ul>`:''}
+${enEjecucion.length>0?`<p>Asimismo, se vienen ejecutando <b>${enEjecucion.length}</b> intervenciones:</p><ul>${buildActRows(ejec_en_act)}</ul>`:''}
+${progProx.length>0?`<p>En adición, se tiene <b>${programadas.length}</b> intervenciones programadas para el presente período, de acuerdo al siguiente detalle:</p>${tablaProx}<p><i>Las fechas de inicio programadas están sujetas a variaciones por condiciones climáticas, gestiones administrativas, situaciones de emergencia y otros factores que puedan afectar su ejecución.</i></p>`:''}
+${paralizadas.length>0?`<p><b style="color:#CC0000">Intervenciones paralizadas:</b> ${paralizadas.length} intervenciones se encuentran paralizadas en la región, requiriendo gestión inmediata para su reactivación.</p>`:''}
+
+<div class="seccion">Resumen de intervenciones 2026.</div>
+<table class="kpi-table">
+<tr><td>Total de intervenciones</td><td>${allUBO.length}</td></tr>
+<tr class="even"><td>Ejecutadas</td><td>${ejecutadas.length} (${allUBO.length?(ejecutadas.length/allUBO.length*100).toFixed(1):0}%)</td></tr>
+<tr><td>En ejecución</td><td>${enEjecucion.length}</td></tr>
+<tr class="even"><td>Programadas</td><td>${programadas.length}</td></tr>
+<tr><td>Paralizadas</td><td>${paralizadas.length}</td></tr>
+<tr class="even"><td>M³ ejecutado</td><td>${fmtN(m3Total)} m³</td></tr>
+<tr><td>Población beneficiada</td><td>${fmtN(pobTotal)} habitantes</td></tr>
+</table>
+</body></html>`
+
+    const blob = new Blob([html], {type:'application/msword'})
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Ayuda_Memoria_${uboNombre}_${new Date().toISOString().slice(0,10)}.doc`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [filtered, uboSel])
+
   const sel = 'text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white bg-white dark:border-slate-600'
 
   return (
@@ -168,6 +307,9 @@ export default function Distribucion({ filtered, inventario, raw }) {
           <button onClick={exportExcel} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-emerald-600 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 whitespace-nowrap">
             ↓ Excel (General + por UBO)
           </button>
+          <button onClick={exportAyudaMemoria} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-blue-700 bg-blue-50 text-blue-800 hover:bg-blue-100 whitespace-nowrap">
+            📄 Ayuda Memoria Word
+          </button>
         </div>
       </div>
 
@@ -181,54 +323,118 @@ export default function Distribucion({ filtered, inventario, raw }) {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {[
-              {l:'Intervenciones activas',v:interv.length,s:'con maquinaria',c:'amber'},
-              {l:'Total unidades en uso',v:totalEnUso,s:'asignadas',c:'purple'},
-              {l:'MP en operación',v:mpUso,s:'maquinaria pesada',c:'amber'},
-              {l:'VP en operación',v:vpUso,s:'vehículos pesados',c:'blue'},
-              {l:'Disponibles en UBO',v:invDisp.length,s:`${totalMP} MP · ${totalVP} VP`,c:'teal'},
-            ].map(({l,v,s,c})=>(
-              <div key={l} className={`bg-white bg-white border border-slate-200 rounded-xl p-3 border-t-4 border-t-${c}-500`}>
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">{l}</div>
-                <div className="text-2xl font-extrabold text-slate-800 text-slate-800">{v}</div>
-                <div className="text-xs text-slate-400 mt-0.5">{s}</div>
-              </div>
-            ))}
+              {id:'INTERVENCIONES', l:'Intervenciones activas', v:interv.length,     s:'click para ver lista',  bord:'border-t-amber-500',   actBg:'bg-amber-50',   actBord:'border-amber-500'},
+              {id:'TOTAL_USO',      l:'Total unidades en uso',  v:totalEnUso,         s:'click para ver equipos', bord:'border-t-purple-500',  actBg:'bg-purple-50',  actBord:'border-purple-500'},
+              {id:'MP',             l:'MP en operación',         v:mpUso,              s:'maquinaria pesada',      bord:'border-t-amber-600',   actBg:'bg-amber-50',   actBord:'border-amber-600'},
+              {id:'VP',             l:'VP en operación',         v:vpUso,              s:'vehículos pesados',      bord:'border-t-blue-600',    actBg:'bg-blue-50',    actBord:'border-blue-600'},
+              {id:'DISPONIBLES',    l:'Disponibles en UBO',      v:invDisp.length,     s:`${totalMP} MP · ${totalVP} VP`, bord:'border-t-emerald-500', actBg:'bg-emerald-50', actBord:'border-emerald-500'},
+            ].map(({id,l,v,s,bord,actBg,actBord})=>{
+              const isActive = vistaActiva === id
+              return (
+                <button key={id} onClick={()=>setVistaActiva(id)}
+                  className={`w-full text-left rounded-xl p-3 border-t-4 transition-all ${bord} ${isActive ? `${actBg} border-2 ${actBord} shadow-md` : 'bg-white border border-slate-200 hover:shadow-sm hover:border-slate-300'}`}>
+                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">{l}</div>
+                  <div className={`text-2xl font-extrabold ${isActive?'text-[#1F3864]':'text-slate-800'}`}>{v}</div>
+                  <div className={`text-xs mt-0.5 ${isActive?'text-slate-600 font-semibold':'text-slate-400'}`}>
+                    {isActive ? '▼ vista activa' : s}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+          {/* Indicador de vista activa */}
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-400">Mostrando:</span>
+            <span className="bg-[#1F3864] text-white px-3 py-0.5 rounded-full font-semibold">
+              {vistaActiva === 'INTERVENCIONES' ? `${interv.length} Intervenciones activas` :
+               vistaActiva === 'TOTAL_USO'      ? `${unidadesEnUso.length} Unidades en uso` :
+               vistaActiva === 'MP'             ? `${unidadesMP.length} MP en operación` :
+               vistaActiva === 'VP'             ? `${unidadesVP.length} VP en operación` :
+                                                 `${invDisp.length} Disponibles en UBO`}
+            </span>
+            <span className="text-slate-400">— haz clic en otro KPI para cambiar la vista</span>
           </div>
 
-          {/* Sección 1 */}
-          <div className="bg-white bg-white border border-slate-200 border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-3">
-              <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">
-                {estSel === 'EN EJECUCIÓN' ? 'Intervenciones en ejecución con maquinaria' : 'Intervenciones activas con maquinaria'}
+          {/* VISTA DINÁMICA según KPI seleccionado */}
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-200 bg-[#1F3864] flex items-center gap-3">
+              <span className="text-xs font-bold text-white uppercase tracking-wide">
+                {vistaActiva === 'INTERVENCIONES' ? (estSel === 'EN EJECUCIÓN' ? 'Intervenciones en ejecución con maquinaria' : 'Intervenciones activas con maquinaria') :
+                 vistaActiva === 'TOTAL_USO'      ? 'Total de unidades en uso — todos los equipos asignados' :
+                 vistaActiva === 'MP'             ? 'MP en operación — Maquinaria Pesada asignada' :
+                 vistaActiva === 'VP'             ? 'VP en operación — Vehículo Pesado asignado' :
+                                                   'Recursos disponibles en la UBO'}
               </span>
-              <span className="text-xs text-slate-400 ml-auto">{interv.length} registros</span>
+              <span className="text-xs text-blue-200 ml-auto">
+                {vistaActiva === 'INTERVENCIONES' ? interv.length :
+                 vistaActiva === 'TOTAL_USO'      ? unidadesEnUso.length :
+                 vistaActiva === 'MP'             ? unidadesMP.length :
+                 vistaActiva === 'VP'             ? unidadesVP.length :
+                                                   invDisp.length} registros
+              </span>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-xs min-w-[800px]">
-                <thead className="bg-slate-50 bg-white">
-                  <tr>{['UBO','Lugar de intervención','Actividad','Máquina / Vehículo','F. Inicio','F. Fin','Estado','Condición','Observación'].map(h=>(
-                    <th key={h} className="px-2 py-2 text-left font-bold text-slate-500 text-xs uppercase border-b border-slate-200 whitespace-nowrap">{h}</th>
-                  ))}</tr>
-                </thead>
-                <tbody>
-                  {interv.slice(0,300).map((r,i)=>(
-                    <tr key={i} onClick={()=>setPanel(r)} className="hover:bg-slate-50 cursor-pointer border-b border-slate-100">
-                      <td className="px-2 py-2 font-semibold text-[#1F3864]">{r.ubo}</td>
-                      <td className="px-2 py-2 uppercase text-slate-600">{[r.dep,r.prov,r.dist].filter(Boolean).join(', ')}</td>
-                      <td className="px-2 py-2 font-semibold">{ACT_LABELS_DIST[r.cod_act]||r.cod_act||'—'}</td>
-                      <td className="px-2 py-2"><MaqChips maquinas={r.maquinas}/></td>
-                      <td className="px-2 py-2 whitespace-nowrap">{r.f_ini||'—'}</td>
-                      <td className="px-2 py-2 whitespace-nowrap">{r.f_fin||'—'}</td>
-                      <td className="px-2 py-2"><Badge estado={r.estado}/></td>
-                      <td className="px-2 py-2"><span className="inline-block bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded-full font-bold">OPERATIVO</span></td>
-                      <td className="px-2 py-2 text-slate-400 max-w-[140px] truncate">{r.obs||''}</td>
-                    </tr>
-                  ))}
-                  {!interv.length && (
-                    <tr><td colSpan={9} className="text-center py-8 text-slate-400">Sin intervenciones activas con maquinaria para este filtro</td></tr>
-                  )}
-                </tbody>
-              </table>
+              {/* VISTA: Intervenciones */}
+              {vistaActiva === 'INTERVENCIONES' && (
+                <table className="w-full text-xs min-w-[800px]">
+                  <thead><tr className="bg-slate-50">{['UBO','Lugar de intervención','Actividad','Máquina / Vehículo','F. Inicio','F. Fin','Estado','Condición','Observación'].map(h=>(
+                    <th key={h} className="px-2 py-2 text-left font-bold text-slate-500 uppercase border-b border-slate-200 whitespace-nowrap">{h}</th>
+                  ))}</tr></thead>
+                  <tbody>
+                    {interv.slice(0,300).map((r,i)=>(
+                      <tr key={i} onClick={()=>setPanel(r)} className={`hover:bg-amber-50 cursor-pointer border-b border-slate-100 ${i%2===0?'bg-white':'bg-slate-50'}`}>
+                        <td className="px-2 py-2 font-semibold text-[#1F3864]">{r.ubo}</td>
+                        <td className="px-2 py-2 uppercase text-slate-600 text-xs">{[r.dep,r.prov,r.dist].filter(Boolean).join(', ')}</td>
+                        <td className="px-2 py-2 font-semibold text-xs">{ACT_LABELS_DIST[r.cod_act]||r.cod_act||'—'}</td>
+                        <td className="px-2 py-2"><MaqChips maquinas={r.maquinas}/></td>
+                        <td className="px-2 py-2 whitespace-nowrap">{r.f_ini||'—'}</td>
+                        <td className="px-2 py-2 whitespace-nowrap">{r.f_fin||'—'}</td>
+                        <td className="px-2 py-2"><Badge estado={r.estado}/></td>
+                        <td className="px-2 py-2"><span className="inline-block bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded-full font-bold">OPERATIVO</span></td>
+                        <td className="px-2 py-2 text-slate-400 max-w-[140px] truncate text-xs">{r.obs||''}</td>
+                      </tr>
+                    ))}
+                    {!interv.length && <tr><td colSpan={9} className="text-center py-8 text-slate-400">Sin intervenciones activas</td></tr>}
+                  </tbody>
+                </table>
+              )}
+
+              {/* VISTA: Total unidades en uso / MP / VP */}
+              {(vistaActiva === 'TOTAL_USO' || vistaActiva === 'MP' || vistaActiva === 'VP') && (() => {
+                const lista = vistaActiva === 'MP' ? unidadesMP : vistaActiva === 'VP' ? unidadesVP : unidadesEnUso
+                const bgHover = vistaActiva === 'MP' ? 'hover:bg-amber-50' : vistaActiva === 'VP' ? 'hover:bg-blue-50' : 'hover:bg-purple-50'
+                return (
+                  <table className="w-full text-xs min-w-[700px]">
+                    <thead><tr className="bg-slate-50">{['Código','Tipo','Clase','UBO','Ficha intervención','F. Inicio','F. Fin','Estado equipo','Marca'].map(h=>(
+                      <th key={h} className="px-2 py-2 text-left font-bold text-slate-500 uppercase border-b border-slate-200 whitespace-nowrap">{h}</th>
+                    ))}</tr></thead>
+                    <tbody>
+                      {lista.slice(0,300).map((u,i)=>(
+                        <tr key={i} onClick={()=>setPanel(u.intervencion)} className={`${bgHover} cursor-pointer border-b border-slate-100 ${i%2===0?'bg-white':'bg-slate-50'}`}>
+                          <td className="px-2 py-1.5 font-mono font-bold text-slate-700">{u.cod}</td>
+                          <td className="px-2 py-1.5">{u.tipo}</td>
+                          <td className="px-2 py-1.5">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${u.clasificacion==='MP'?'bg-amber-100 text-amber-800':'bg-blue-100 text-blue-800'}`}>{u.clasificacion}</span>
+                          </td>
+                          <td className="px-2 py-1.5 font-semibold text-[#1F3864]">{u.ubo}</td>
+                          <td className="px-2 py-1.5">
+                            <span className="inline-block bg-purple-50 border border-purple-200 text-purple-800 rounded px-2 py-0.5 text-xs font-medium">{u.ficha}</span>
+                          </td>
+                          <td className="px-2 py-1.5 whitespace-nowrap text-slate-500">{u.f_ini||'—'}</td>
+                          <td className="px-2 py-1.5 whitespace-nowrap text-slate-500">{u.f_fin||'—'}</td>
+                          <td className="px-2 py-1.5">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${(u.estado_maq||'OPERATIVO')==='INOPERATIVO'?'bg-red-100 text-red-700':'bg-emerald-100 text-emerald-800'}`}>
+                              {u.estado_maq||'OPERATIVO'}
+                            </span>
+                          </td>
+                          <td className="px-2 py-1.5 text-slate-400">{u.marca}</td>
+                        </tr>
+                      ))}
+                      {!lista.length && <tr><td colSpan={9} className="text-center py-8 text-slate-400">Sin equipos en este filtro</td></tr>}
+                    </tbody>
+                  </table>
+                )
+              })()}
             </div>
           </div>
 
