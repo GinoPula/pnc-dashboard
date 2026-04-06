@@ -59,7 +59,7 @@ export function SidePanel({ row, onClose, EST_FICHA_LBL, EST_FICHA_COLS }) {
   return (
     <>
       <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="fixed top-0 right-0 w-[460px] max-w-full h-full bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-700 z-50 overflow-y-auto shadow-2xl">
+      <div className="fixed top-0 right-0 w-full sm:w-[460px] max-w-full h-full bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-700 z-50 overflow-y-auto shadow-2xl">
         <div className="bg-[#1F3864] px-4 py-3 flex items-center justify-between sticky top-0">
           <span className="text-white font-bold text-sm">N°{row.num} · {row.ficha}</span>
           <button onClick={onClose} className="text-blue-200 hover:text-white text-xl px-2">✕</button>
@@ -138,42 +138,4 @@ function Row({ label, value, small }) {
   )
 }
 
-// ── FILTER BAR ────────────────────────────────────────
-export function FilterBar({ ubos, deps, anios, curAnio, curMes, curUBO, curDep, curTipo, setCurAnio, setCurMes, setCurUBO, setCurDep, setCurTipo, count, total }) {
-  const sel = 'text-xs border border-slate-300 rounded-md px-2 py-1 bg-white dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 cursor-pointer'
-  const MESES_OPT = [['TODOS','Todos'],['01','Enero'],['02','Febrero'],['03','Marzo'],['04','Abril'],['05','Mayo'],['06','Junio'],['07','Julio'],['08','Agosto'],['09','Setiembre'],['10','Octubre'],['11','Noviembre'],['12','Diciembre']]
-  const TIPOS = ['TODOS','PREVENCIÓN','EMERGENCIA','URGENTE ATENCIÓN']
-  return (
-    <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-4 py-2 flex flex-wrap gap-2 items-center sticky top-10 z-30">
-      <span className="text-xs font-semibold text-slate-400 uppercase">Año:</span>
-      <select className={sel} value={curAnio} onChange={e => setCurAnio(e.target.value)}>
-        <option value="TODOS">Todos</option>
-        {anios.map(a => <option key={a} value={a}>{a}</option>)}
-      </select>
-      <span className="text-xs font-semibold text-slate-400 uppercase">Mes:</span>
-      <select className={sel} value={curMes} onChange={e => setCurMes(e.target.value)}>
-        {MESES_OPT.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-      </select>
-      <span className="text-xs font-semibold text-slate-400 uppercase">UBO:</span>
-      <select className={sel} value={curUBO} onChange={e => setCurUBO(e.target.value)}>
-        <option value="TODOS">Todos</option>
-        {ubos.map(u => <option key={u} value={u}>{u}</option>)}
-      </select>
-      <span className="text-xs font-semibold text-slate-400 uppercase">Depto:</span>
-      <select className={sel} value={curDep} onChange={e => setCurDep(e.target.value)}>
-        <option value="TODOS">Todos</option>
-        {deps.map(d => <option key={d} value={d}>{d}</option>)}
-      </select>
-      <span className="text-xs font-semibold text-slate-400 uppercase">Tipo:</span>
-      <div className="flex gap-1">
-        {TIPOS.map(t => (
-          <button key={t} onClick={() => setCurTipo(t)}
-            className={`px-2 py-0.5 rounded-full text-xs border transition-all ${curTipo === t ? 'bg-[#1F3864] text-white border-[#1F3864] font-bold' : 'bg-transparent text-slate-500 border-slate-300 hover:border-blue-400'}`}>
-            {t === 'TODOS' ? 'Todos' : t === 'PREVENCIÓN' ? 'Prevención' : t === 'EMERGENCIA' ? 'Emergencia' : 'Urgente'}
-          </button>
-        ))}
-      </div>
-      <span className="ml-auto text-xs text-slate-400">{count.toLocaleString()} de {total.toLocaleString()}</span>
-    </div>
-  )
-}
+export { FilterBar } from './FilterBar'

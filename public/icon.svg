@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#1F3864"/>
+  <rect x="40" y="40" width="432" height="432" rx="60" fill="#1F3864"/>
+  <!-- Texto PNC -->
+  <text x="256" y="200" font-family="Arial,sans-serif" font-size="140" font-weight="900" fill="#FFFFFF" text-anchor="middle" dominant-baseline="middle">PNC</text>
+  <!-- Barras de gráfico -->
+  <rect x="80" y="320" width="60" height="120" rx="8" fill="#10B981"/>
+  <rect x="160" y="280" width="60" height="160" rx="8" fill="#3B82F6"/>
+  <rect x="240" y="240" width="60" height="200" rx="8" fill="#F59E0B"/>
+  <rect x="320" y="260" width="60" height="180" rx="8" fill="#10B981"/>
+  <rect x="400" y="300" width="32" height="140" rx="8" fill="#3B82F6"/>
+</svg>

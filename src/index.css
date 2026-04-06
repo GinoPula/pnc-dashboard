@@ -1,3 +1,64 @@
 @import "tailwindcss";
 * { box-sizing: border-box; }
 body { font-family: 'Segoe UI', system-ui, sans-serif; }
+
+/* Mobile scrollbar hide */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Touch improvements */
+button, select { touch-action: manipulation; }
+
+/* Tables scroll on mobile */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* Viewport meta fix */
+@media (max-width: 640px) {
+  .text-4xl { font-size: 2rem; }
+  .text-3xl { font-size: 1.5rem; }
+}
+
+/* PWA Install Banner */
+.pwa-banner {
+  position: fixed;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1F3864;
+  color: white;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 100;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  max-width: 320px;
+  width: calc(100% - 32px);
+  animation: slideUp 0.3s ease;
+}
+@keyframes slideUp {
+  from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+  to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
+}
+.pwa-banner button.install {
+  background: #10B981;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pwa-banner button.close {
+  background: transparent;
+  color: #93C5FD;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  margin-left: auto;
+}

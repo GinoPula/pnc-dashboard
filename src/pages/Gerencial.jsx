@@ -32,7 +32,7 @@ export default function Gerencial({ filtered, stats }) {
   const x2=cx+r*Math.cos(rad(180+angle)), y2=cy+r*Math.sin(rad(180+angle))
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
       {/* Header */}
       <div>
         <h1 className="text-xl font-extrabold text-[#1F3864] dark:text-blue-300">Estado de Maquinarias</h1>
@@ -40,7 +40,7 @@ export default function Gerencial({ filtered, stats }) {
       </div>
 
       {/* Big KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 sm:gap-3">
         <KpiCard label="Total" value={stats.tot.toLocaleString()} sub="intervenciones" color="blue" />
         <KpiCard label="Ejecutadas" value={stats.ej.toLocaleString()} sub={pct(stats.pctEjec*100)} color="teal" />
         <KpiCard label="En ejecución" value={stats.en.toLocaleString()} sub="activas" color="amber" />
@@ -64,7 +64,7 @@ export default function Gerencial({ filtered, stats }) {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {/* Gauge */}
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">% Ejecución global</div>
@@ -89,7 +89,7 @@ export default function Gerencial({ filtered, stats }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {/* Top departamentos */}
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Top departamentos</div>
