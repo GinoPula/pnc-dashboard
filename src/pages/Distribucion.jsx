@@ -68,6 +68,7 @@ export default function Distribucion({ filtered, inventario, raw }) {
         r.maquinas.map(m => `${m.tipo} ( ${m.cod} )`).join(', '),
         r.f_ini, r.f_fin, 'OPERATIVO', r.obs || ''
       ])
+      // Sección 2: recursos disponibles con observación del excel
       const rows2 = invRows.map(e => ['Ubicados en la UBO', `${e.tipo_unidad}(${e.codigo})`, 'OPERATIVO', ''])
       const mpD = invRows.filter(e => e.clasificacion === 'MP').length
       const vpD = invRows.filter(e => e.clasificacion === 'VP').length
@@ -81,12 +82,54 @@ export default function Distribucion({ filtered, inventario, raw }) {
       ]
     }
 
-    // Hoja GENERAL
-    const genSheet = XLSX.utils.aoa_to_sheet(buildSheet(uboSel === 'TODOS' ? 'GENERAL' : uboSel, interv, invDisp))
-    genSheet['!cols'] = [{wch:30},{wch:32},{wch:45},{wch:14},{wch:14},{wch:12},{wch:45}]
-    XLSX.utils.book_append_sheet(wb, genSheet, 'GENERAL')
+    // ── HOJA GENERAL — Resumen de cantidades (como imagen) ─────────────
+    const buildGeneralSheet = () => {
+      const timestamp = `${fecha} ${hora}`
+      const rows = []
+      rows.push([`INTERVENCIONES EN EJECUCION PNC MAQUINARIAS`])
+      rows.push([timestamp])
+      rows.push([])
+      rows.push(['NÚMERO DE INTERVENCIONES:', interv.length])
+      // Total maquinaria comprometida
+      const totalMaq = interv.reduce((a,r) => a + r.maquinas.length, 0)
+      rows.push(['MÁQUINA COMPROMETIDA:', totalMaq])
+      rows.push([])
 
-    // Hoja por UBO
+      // Máquina comprometida por tipo
+      rows.push(['MÁQUINA COMPROMETIDA POR TIPO', ''])
+      const tiposCnt = {}
+      interv.forEach(r => r.maquinas.forEach(m => { tiposCnt[m.tipo] = (tiposCnt[m.tipo]||0)+1 }))
+      Object.entries(tiposCnt).sort((a,b) => b[1]-a[1]).forEach(([tipo,cnt]) => {
+        rows.push([tipo, cnt])
+      })
+      rows.push([])
+
+      // Máquina comprometida por UBO
+      rows.push(['MÁQUINA COMPROMETIDA POR UBO', ''])
+      const uboMaqCnt = {}
+      interv.forEach(r => { uboMaqCnt[r.ubo] = (uboMaqCnt[r.ubo]||0) + r.maquinas.length })
+      Object.entries(uboMaqCnt).sort((a,b) => a[0].localeCompare(b[0])).forEach(([ubo,cnt]) => {
+        rows.push([ubo, cnt])
+      })
+      rows.push([])
+
+      // Circunscripción territorial
+      rows.push(['NÚMERO DE INTERVENCIONES POR CIRCUNSCRIPCIÓN TERRITORIAL'])
+      rows.push(['DEPARTAMENTO', 'PROVINCIA', 'DISTRITO'])
+      const deps = new Set(interv.map(r=>r.dep))
+      const provs = new Set(interv.map(r=>r.prov))
+      const dists = new Set(interv.map(r=>r.dist))
+      rows.push([deps.size, provs.size, dists.size])
+      return rows
+    }
+
+    // Hoja GENERAL con resumen
+    const genData = buildGeneralSheet()
+    const wsGen = XLSX.utils.aoa_to_sheet(genData)
+    wsGen['!cols'] = [{wch:40},{wch:14},{wch:14}]
+    XLSX.utils.book_append_sheet(wb, wsGen, 'General')
+
+    // Hoja por UBO (con intervenciones + disponibles)
     allUBOs.forEach(ubo => {
       const uboInterv = interv.filter(r => r.ubo === ubo)
       const uboInv = invDisp.filter(e => e.ubo === ubo)
