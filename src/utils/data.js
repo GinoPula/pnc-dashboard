@@ -114,12 +114,21 @@ export function procesarIntervenciones(rows) {
 export function procesarInventario(rows, codigosEnUso=new Set()) {
   return rows.map(r=>{
     const cod=sv(r.CODIGO||r.Codigo), flota=sv(r.FLOTA||r.Flota).toUpperCase()
+    // Limpiar comentario (quitar tabs y espacios extra)
+    const comentarioRaw = sv(r.COMENTARIO||r.Comentario)
+    const comentario = comentarioRaw.replace(/\t/g,'').replace(/\s+/g,' ').trim()
+    const estadoMaq = sv(r.ESTADO_MAQUINARIA||r.Estado_Maquinaria||'OPERATIVO').toUpperCase()
     return {
       codigo:cod, ubo:sv(r.UBO||r.Ubo).toUpperCase(),
-      dep:sv(r.DEPARTAMENTO||r.Departamento).toUpperCase(), flota,
+      dep:sv(r.DEPARTAMENTO||r.Departamento||r.REGION||r.Region).toUpperCase(), flota,
       clasificacion:flota==='MAQUINARIA'?'MP':'VP',
       tipo_unidad:sv(r.TIPO_UNIDAD||r.Tipo_Unidad),
       marca:sv(r.MARCA||r.Marca), modelo:sv(r.MODELO||r.Modelo),
+      anio_fab:sv(r['AÑO DE FABRICACION']||r.ANO_FAB||''),
+      estado_maq: estadoMaq,        // OPERATIVO / INOPERATIVO
+      comentario: comentario,       // Comentario del área de mantenimiento
+      horometro: sv(r.HOROMETRO||''),
+      kilometraje: sv(r.KILOMETRAJE||''),
       en_uso:codigosEnUso.has(cod), disponible:!codigosEnUso.has(cod),
       estado_uso:codigosEnUso.has(cod)?'EN USO':'DISPONIBLE',
     }

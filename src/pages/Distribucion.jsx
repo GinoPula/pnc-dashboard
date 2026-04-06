@@ -69,7 +69,7 @@ export default function Distribucion({ filtered, inventario, raw }) {
         r.f_ini, r.f_fin, 'OPERATIVO', r.obs || ''
       ])
       // Sección 2: recursos disponibles con observación del excel
-      const rows2 = invRows.map(e => ['Ubicados en la UBO', `${e.tipo_unidad}(${e.codigo})`, 'OPERATIVO', ''])
+      const rows2 = invRows.map(e => ['Ubicados en la UBO', `${e.tipo_unidad}(${e.codigo})`, e.estado_maq||'OPERATIVO', e.comentario||''])
       const mpD = invRows.filter(e => e.clasificacion === 'MP').length
       const vpD = invRows.filter(e => e.clasificacion === 'VP').length
       return [
@@ -252,8 +252,14 @@ export default function Distribucion({ filtered, inventario, raw }) {
                       <td className="px-2 py-2"><span className="inline-block bg-purple-50 border border-purple-200 text-purple-800 rounded text-xs px-2 py-0.5 font-medium">{e.tipo_unidad} <span className="text-purple-400">{e.codigo}</span></span></td>
                       <td className="px-2 py-2"><span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${e.clasificacion==='MP'?'bg-amber-100 text-amber-800':'bg-blue-100 text-blue-800'}`}>{e.clasificacion}</span></td>
                       <td className="px-2 py-2 text-slate-500">{e.marca}</td>
-                      <td className="px-2 py-2"><span className="inline-block bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded-full font-bold">OPERATIVO</span></td>
-                      <td className="px-2 py-2"></td>
+                      <td className="px-2 py-2">
+                        <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-bold ${(e.estado_maq||'OPERATIVO')==='INOPERATIVO'?'bg-red-100 text-red-700':'bg-emerald-100 text-emerald-800'}`}>
+                          {e.estado_maq||'OPERATIVO'}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 text-xs text-slate-500" style={{whiteSpace:'normal',lineHeight:'1.4',maxWidth:'200px'}}>
+                        {e.comentario||''}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
