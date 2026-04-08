@@ -180,6 +180,7 @@ export default function Distribucion({ filtered, inventario, raw }) {
     const allUBO = uboSel!=='TODOS' ? filtered.filter(r=>r.ubo===uboSel) : filtered
     const ejecutadas = allUBO.filter(r=>r.estado==='EJECUTADA')
     const enEjecucion = allUBO.filter(r=>r.estado.normalize('NFC')==='EN EJECUCIÓN')
+    // TODAS las programadas — todos los meses
     const programadas = allUBO.filter(r=>r.estado_g==='PROGRAMADA')
     const paralizadas = allUBO.filter(r=>r.estado==='PARALIZADA')
 
@@ -187,88 +188,129 @@ export default function Distribucion({ filtered, inventario, raw }) {
     ejecutadas.forEach(r=>{const k=r.act_label||r.cod_act;if(!ejec_act[k])ejec_act[k]=[];ejec_act[k].push(r)})
     enEjecucion.forEach(r=>{const k=r.act_label||r.cod_act;if(!ejec_en_act[k])ejec_en_act[k]=[];ejec_en_act[k].push(r)})
 
-    const prog_mes={}
-    programadas.forEach(r=>{const m=r.estado.replace('PROGRAMADA ','');if(!prog_mes[m])prog_mes[m]=[];prog_mes[m].push(r)})
-    const primerMes=Object.keys(prog_mes)[0]
-    const progProx=primerMes?prog_mes[primerMes]:[]
-
     const m3Total=ejecutadas.reduce((a,r)=>a+(r.m3||0),0)
     const pobTotal=ejecutadas.reduce((a,r)=>a+(r.pob||0),0)
 
-    // Generar HTML que se descarga y se puede abrir en Word
-    const mesesOrd=['MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SETIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE']
     const buildActRows=(actObj)=>Object.entries(actObj).map(([lbl,ints])=>{
-      const provs=[...new Set(ints.map(r=>r.prov).filter(Boolean))]
+      const provs=[...new Set(ints.map(r=>r.prov).filter(Boolean))].sort()
       const m3=ints.reduce((a,r)=>a+(r.m3||0),0)
       const pob=ints.reduce((a,r)=>a+(r.pob||0),0)
       let txt=`${ints.length} intervención${ints.length>1?'es':''} de ${lbl}`
       if(provs.length)txt+=`, en la${provs.length>1?'s':''} provincia${provs.length>1?'s':''} de ${provs.join(', ')}`
       if(m3>0)txt+=`, removiendo ${fmtN(m3)} m³ de material sedimentado`
       if(pob>0)txt+=`, beneficiando a ${fmtN(pob)} habitantes`
-      return txt+'.'
-    }).map(t=>`<li>${t}</li>`).join('')
+      return `<li>${txt}.</li>`
+    }).join('')
 
-    const tablaProx = progProx.length>0 ? `
-      <table><thead><tr><th>DEPART.</th><th>PROVINCIA</th><th>DISTRITO</th><th>SECTOR</th><th>FICHA TEC.</th><th>DESCRIPCIÓN</th><th>FECHA INICIO</th><th>FECHA FIN</th><th>META VOL</th><th>META KM</th><th>POB. BENEF.</th></tr></thead>
-      <tbody>${progProx.map((r,i)=>`<tr class="${i%2===0?'even':''}"><td>${r.dep}</td><td>${r.prov}</td><td>${r.dist}</td><td>${r.sector||''}</td><td>${r.ficha}</td><td>${(r.descripcion||'').slice(0,50)}</td><td>${r.f_ini}</td><td>${r.f_fin}</td><td>${r.meta_vol!=null?fmtN(r.meta_vol):''}</td><td>${r.meta_km!=null?r.meta_km.toFixed(2):''}</td><td>${r.pob!=null?fmtN(r.pob):''}</td></tr>`).join('')}</tbody></table>
-    ` : ''
+    // TABLA: TODAS las programadas ordenadas por fecha inicio
+    const progOrdenadas = [...programadas].sort((a,b)=>{
+      const pa=(d)=>{if(!d)return new Date(0);const m=d.match(/(\d{2})\/(\d{2})\/(\d{4})/);return m?new Date(+m[3],+m[2]-1,+m[1]):new Date(0)}
+      return pa(a.f_ini)-pa(b.f_ini)
+    })
+
+    const tablaProg = programadas.length>0 ? `
+      <table>
+        <thead><tr>
+          <th>DEPART.</th><th>PROVINCIA</th><th>DISTRITO</th><th>SECTOR</th>
+          <th>FICHA TEC.</th><th>DESCRIPCIÓN</th><th>FECHA INICIO</th><th>FECHA FIN</th>
+          <th>META VOL</th><th>META KM</th><th>POB. BENEF.</th>
+        </tr></thead>
+        <tbody>${progOrdenadas.map((r,i)=>`
+          <tr class="${i%2===0?'even':''}">
+            <td>${r.dep}</td><td>${r.prov}</td><td>${r.dist}</td>
+            <td>${r.sector||''}</td><td>${r.ficha}</td>
+            <td>${(r.descripcion||'').slice(0,55)}</td>
+            <td>${r.f_ini||''}</td><td>${r.f_fin||''}</td>
+            <td>${r.meta_vol!=null?fmtN(r.meta_vol):''}</td>
+            <td>${r.meta_km!=null?r.meta_km.toFixed(2):''}</td>
+            <td>${r.pob!=null?fmtN(r.pob):''}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>` : ''
 
     const html=`<!DOCTYPE html>
-<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-<head><meta charset='UTF-8'><meta name=ProgId content=Word.Document><meta name=Generator content='Microsoft Word 15'>
+<html xmlns:o='urn:schemas-microsoft-com:office:office'
+      xmlns:w='urn:schemas-microsoft-com:office:word'
+      xmlns='http://www.w3.org/TR/REC-html40'>
+<head><meta charset='UTF-8'>
+<meta name=ProgId content=Word.Document>
 <style>
-@page{margin:2.5cm 2cm 2cm 3cm}
-body{font-family:Arial,sans-serif;font-size:11pt;color:#000;line-height:1.4;margin:0}
-.header-inst{font-size:8pt;color:#64748B;border-bottom:2px solid #CC0000;padding-bottom:4pt;margin-bottom:16pt}
-.header-inst b{color:#CC0000}
-.header-inst .prog{color:#1F3864;font-weight:bold}
-.fecha{font-size:10pt;color:#CC0000;margin-bottom:8pt;text-align:left}
-.titulo{font-size:14pt;font-weight:bold;color:#CC0000;margin:12pt 0 16pt 0;text-align:left}
-.seccion{font-size:11pt;font-weight:bold;color:#CC0000;margin:16pt 0 8pt 0}
-.seccion-region{font-size:12pt;font-weight:bold;color:#CC0000;margin:16pt 0 8pt 0}
-p{margin:4pt 0;text-align:justify}
-ul{margin:4pt 0;padding-left:20pt}
-li{margin:3pt 0}
-table{width:100%;border-collapse:collapse;margin:8pt 0;font-size:8pt}
-th{background:#1F3864;color:#fff;padding:4pt 5pt;text-align:left;font-size:7.5pt;font-weight:bold}
-td{padding:3pt 5pt;border-bottom:1px solid #F1F5F9;vertical-align:top}
+@page{margin:2.54cm 2.54cm 2.54cm 2.0cm}
+body{font-family:Arial,sans-serif;font-size:11pt;color:#000;line-height:1.4}
+.hdr{font-size:7.5pt;color:#555;border-bottom:2pt solid #CC0000;padding-bottom:3pt;margin-bottom:14pt;display:flex;align-items:center;gap:8pt}
+.hdr-escudo{display:inline-block;width:40pt;height:50pt;background:#CC0000;border-radius:2pt;text-align:center;line-height:50pt;color:#fff;font-weight:bold;font-size:8pt}
+.hdr-txt{flex:1}
+.hdr-prog{color:#1F3864;font-weight:bold;font-size:8pt}
+.fecha{color:#CC0000;font-size:10pt;margin-bottom:6pt}
+.titulo{font-size:14pt;font-weight:bold;color:#CC0000;text-align:center;margin:10pt 0 16pt 0}
+.sec{font-size:11pt;font-weight:bold;color:#CC0000;margin:14pt 0 6pt 0}
+.sec-reg{font-size:12pt;font-weight:bold;color:#CC0000;margin:14pt 0 6pt 0}
+p{margin:3pt 0 5pt 0;text-align:justify}
+ul{margin:3pt 0;padding-left:18pt}
+li{margin:2pt 0;text-align:justify}
+table{width:100%;border-collapse:collapse;margin:6pt 0;font-size:7.5pt}
+th{background:#1F3864;color:#fff;padding:3pt 4pt;font-size:7pt;font-weight:bold;text-align:left}
+td{padding:3pt 4pt;border-bottom:0.5pt solid #E2E8F0;vertical-align:top}
 tr.even td{background:#F1F5F9}
-.kpi-table{width:55%}
-.kpi-table td:last-child{text-align:right;font-weight:bold;color:#1F3864}
+.resumen-tbl{width:55%}
+.resumen-tbl td:last-child{text-align:right;font-weight:bold;color:#1F3864}
 </style></head>
 <body>
-<div class="header-inst"><b>PERÚ</b> &nbsp;|&nbsp; Ministerio de Vivienda, Construcción y Saneamiento &nbsp;|&nbsp; Viceministerio de Vivienda y Urbanismo &nbsp;|&nbsp; <span class="prog">Programa Nuestras Ciudades</span></div>
+<!-- ENCABEZADO INSTITUCIONAL -->
+<div class="hdr">
+  <span style="font-weight:bold;color:#CC0000;font-size:9pt">PERÚ</span>
+  &nbsp;|&nbsp; Ministerio de Vivienda, Construcción y Saneamiento
+  &nbsp;|&nbsp; Viceministerio de Vivienda y Urbanismo
+  &nbsp;|&nbsp; <span class="hdr-prog">Programa Nuestras Ciudades</span>
+</div>
+
 <div class="fecha">${fechaDoc}</div>
 <div class="titulo">PNC MAQUINARIAS EN EL DEPARTAMENTO DE ${uboNombre}</div>
-<div class="seccion">Antecedentes.</div>
+
+<div class="sec">Antecedentes.</div>
 <p><b>PNC-MAQUINARIAS</b> del Programa Nuestras Ciudades realiza trabajos de prevención y mitigación de riesgos a nivel nacional para proteger a las poblaciones más vulnerables del país. Este pool de maquinaria está a disposición para realizar trabajos de prevención y atender emergencias causadas por fenómenos naturales o climatológicos como huaicos, desbordes de ríos, sismos y terremotos.</p>
 <p><b>PNC-MAQUINARIAS</b> realiza intervenciones de PREVENCIÓN, URGENCIA (Intervenciones que se realizan por un acuerdo de concejo) e intervenciones de EMERGENCIA (Requiere Decreto de Emergencia PCM). Las intervenciones se realizan en zonas donde existen viviendas, para protección de equipamiento e infraestructura urbana.</p>
 <p><b>Principales Actividades.</b></p>
 <ul>
-<li>Limpieza y descolmatación de drenes, quebradas, canales y ríos y conformación de diques de protección, hasta garantizar la escorrentía y desfogue de las aguas.</li>
-<li>Limpieza de escombros por desastres y nivelación de terrenos para damnificados.</li>
-<li>Mejoramiento de la transitabilidad de calles y vías de acceso dentro de centros poblados urbanos y rurales.</li>
-<li>Abastecimiento y distribución de agua potable.</li>
+  <li>Limpieza y descolmatación de drenes, quebradas, canales y ríos y conformación de diques de protección, hasta garantizar la escorrentía y desfogue de las aguas.</li>
+  <li>Limpieza de escombros por desastres y nivelación de terrenos para damnificados.</li>
+  <li>Mejoramiento de la transitabilidad de calles y vías de acceso dentro de centros poblados urbanos y rurales.</li>
+  <li>Abastecimiento y distribución de agua potable.</li>
 </ul>
 <p>Las intervenciones del programa se realizan a solicitud de las autoridades distritales, provinciales y regionales, con el fin de salvaguardar la vida de las personas, proteger sus bienes y reducir el impacto de los desastres naturales.</p>
 <p>Actualmente, el PNC Maquinarias cuenta con <b>19 UBOs</b> ubicadas en los departamentos de Lima, Ayacucho, Cusco, Ancash, Ica, Piura, La Libertad, Lambayeque, Cajamarca, San Martín, Loreto, Amazonas, Huánuco, Puno, Apurímac, Arequipa, Junín, Tacna y Tumbes.</p>
 
-<div class="seccion-region">Intervenciones de PNC Maquinarias en la región <span>${uboNombre}</span>.</div>
+<div class="sec-reg">Intervenciones de PNC Maquinarias en la región ${uboNombre}.</div>
 
-${ejecutadas.length>0?`<p>Durante el 2026, el PNC Maquinarias en la región <b>${uboNombre}</b> ha ejecutado <b>${ejecutadas.length}</b> intervenciones.</p><ul>${buildActRows(ejec_act)}</ul>`:''}
-${enEjecucion.length>0?`<p>Asimismo, se vienen ejecutando <b>${enEjecucion.length}</b> intervenciones:</p><ul>${buildActRows(ejec_en_act)}</ul>`:''}
-${progProx.length>0?`<p>En adición, se tiene <b>${programadas.length}</b> intervenciones programadas para el presente período, de acuerdo al siguiente detalle:</p>${tablaProx}<p><i>Las fechas de inicio programadas están sujetas a variaciones por condiciones climáticas, gestiones administrativas, situaciones de emergencia y otros factores que puedan afectar su ejecución.</i></p>`:''}
-${paralizadas.length>0?`<p><b style="color:#CC0000">Intervenciones paralizadas:</b> ${paralizadas.length} intervenciones se encuentran paralizadas en la región, requiriendo gestión inmediata para su reactivación.</p>`:''}
+${ejecutadas.length>0?`
+  <p>Durante el 2026, el PNC Maquinarias en la región <b>${uboNombre}</b> ha ejecutado <b>${ejecutadas.length}</b> intervenciones.</p>
+  <ul>${buildActRows(ejec_act)}</ul>
+`:''}
 
-<div class="seccion">Resumen de intervenciones 2026.</div>
-<table class="kpi-table">
-<tr><td>Total de intervenciones</td><td>${allUBO.length}</td></tr>
-<tr class="even"><td>Ejecutadas</td><td>${ejecutadas.length} (${allUBO.length?(ejecutadas.length/allUBO.length*100).toFixed(1):0}%)</td></tr>
-<tr><td>En ejecución</td><td>${enEjecucion.length}</td></tr>
-<tr class="even"><td>Programadas</td><td>${programadas.length}</td></tr>
-<tr><td>Paralizadas</td><td>${paralizadas.length}</td></tr>
-<tr class="even"><td>M³ ejecutado</td><td>${fmtN(m3Total)} m³</td></tr>
-<tr><td>Población beneficiada</td><td>${fmtN(pobTotal)} habitantes</td></tr>
+${enEjecucion.length>0?`
+  <p>Asimismo, se vienen ejecutando <b>${enEjecucion.length}</b> intervenciones:</p>
+  <ul>${buildActRows(ejec_en_act)}</ul>
+`:''}
+
+${programadas.length>0?`
+  <p>En adición, se tiene <b>${programadas.length}</b> intervenciones programadas para el presente período, de acuerdo al siguiente detalle:</p>
+  ${tablaProg}
+  <p><i>Las fechas de inicio programadas están sujetas a variaciones por condiciones climáticas, gestiones administrativas, situaciones de emergencia y otros factores que puedan afectar su ejecución.</i></p>
+`:''}
+
+${paralizadas.length>0?`
+  <p><b style="color:#CC0000">Intervenciones paralizadas:</b> ${paralizadas.length} intervenciones se encuentran paralizadas en la región ${uboNombre}, requiriendo gestión inmediata para su reactivación.</p>
+`:''}
+
+<div class="sec">Resumen de intervenciones 2026.</div>
+<table class="resumen-tbl">
+  <tr><td>Total de intervenciones</td><td>${allUBO.length}</td></tr>
+  <tr class="even"><td>Ejecutadas</td><td>${ejecutadas.length} (${allUBO.length?(ejecutadas.length/allUBO.length*100).toFixed(1):0}%)</td></tr>
+  <tr><td>En ejecución</td><td>${enEjecucion.length}</td></tr>
+  <tr class="even"><td>Programadas</td><td>${programadas.length}</td></tr>
+  <tr><td>Paralizadas</td><td>${paralizadas.length}</td></tr>
+  <tr class="even"><td>M³ ejecutado</td><td>${fmtN(m3Total)} m³</td></tr>
+  <tr><td>Población beneficiada</td><td>${fmtN(pobTotal)} habitantes</td></tr>
 </table>
 </body></html>`
 
@@ -281,7 +323,7 @@ ${paralizadas.length>0?`<p><b style="color:#CC0000">Intervenciones paralizadas:<
     URL.revokeObjectURL(url)
   }, [filtered, uboSel])
 
-  const sel = 'text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white bg-white dark:border-slate-600'
+    const sel = 'text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white bg-white dark:border-slate-600'
 
   return (
     <div className="p-4 space-y-4">
