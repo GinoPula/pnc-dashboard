@@ -176,8 +176,9 @@ export default function Distribucion({ filtered, inventario, raw }) {
     const CR='CC0000', CN='1F3864', LG='F1F5F9', WH='FFFFFF'
     const fmtN=(n)=>n==null||isNaN(n)?'0':Number(n).toLocaleString('es-PE',{maximumFractionDigits:0})
 
-    // Intervenciones del UBO seleccionado
-    const allUBO = uboSel!=='TODOS' ? filtered.filter(r=>r.ubo===uboSel) : filtered
+    // Intervenciones del UBO seleccionado — usa raw para no depender del FilterBar global
+    const base = (raw && raw.length > 0) ? raw : filtered
+    const allUBO = uboSel!=='TODOS' ? base.filter(r=>r.ubo===uboSel) : base
     const ejecutadas = allUBO.filter(r=>r.estado==='EJECUTADA')
     const enEjecucion = allUBO.filter(r=>r.estado.normalize('NFC')==='EN EJECUCIÓN')
     // TODAS las programadas — todos los meses
@@ -211,20 +212,29 @@ export default function Distribucion({ filtered, inventario, raw }) {
     const tablaProg = programadas.length>0 ? `
       <table>
         <thead><tr>
-          <th>DEPART.</th><th>PROVINCIA</th><th>DISTRITO</th><th>SECTOR</th>
-          <th>FICHA TEC.</th><th>DESCRIPCIÓN</th><th>FECHA INICIO</th><th>FECHA FIN</th>
-          <th>META VOL</th><th>META KM</th><th>POB. BENEF.</th>
+          <th>#</th><th>DEPART.</th><th>PROVINCIA</th><th>DISTRITO</th>
+          <th>FICHA TEC.</th><th>TIPO</th><th>SECTOR</th>
+          <th>FECHA INICIO</th><th>FECHA FIN</th>
+          <th>META VOL (m³)</th><th>META KM</th><th>POB. BENEF.</th>
         </tr></thead>
         <tbody>${progOrdenadas.map((r,i)=>`
           <tr class="${i%2===0?'even':''}">
+            <td style="text-align:center">${i+1}</td>
             <td>${r.dep}</td><td>${r.prov}</td><td>${r.dist}</td>
-            <td>${r.sector||''}</td><td>${r.ficha}</td>
-            <td>${(r.descripcion||'').slice(0,55)}</td>
+            <td style="font-weight:bold;color:#1F3864">${r.ficha}</td>
+            <td>${r.tipo||''}</td>
+            <td>${r.sector||''}</td>
             <td>${r.f_ini||''}</td><td>${r.f_fin||''}</td>
-            <td>${r.meta_vol!=null?fmtN(r.meta_vol):''}</td>
-            <td>${r.meta_km!=null?r.meta_km.toFixed(2):''}</td>
-            <td>${r.pob!=null?fmtN(r.pob):''}</td>
+            <td style="text-align:right">${r.meta_vol!=null?fmtN(r.meta_vol):''}</td>
+            <td style="text-align:right">${r.meta_km!=null?r.meta_km.toFixed(3):''}</td>
+            <td style="text-align:right">${r.pob!=null?fmtN(r.pob):''}</td>
           </tr>`).join('')}
+          <tr style="background:#1F3864;color:#fff;font-weight:bold">
+            <td colspan="9" style="text-align:right;color:#fff">TOTALES:</td>
+            <td style="text-align:right">${fmtN(programadas.reduce((a,r)=>a+(r.meta_vol||0),0))}</td>
+            <td style="text-align:right">${programadas.reduce((a,r)=>a+(r.meta_km||0),0).toFixed(3)}</td>
+            <td style="text-align:right">${fmtN(programadas.reduce((a,r)=>a+(r.pob||0),0))}</td>
+          </tr>
         </tbody>
       </table>` : ''
 
