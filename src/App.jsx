@@ -6,6 +6,8 @@ import Detalle from './pages/Detalle'
 import Distribucion from './pages/Distribucion'
 import Maquinaria from './pages/Maquinaria'
 import Login from './components/Login'
+import MapaUBOs from './pages/MapaUBOs'
+import GestionActivos from './pages/GestionActivos'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { fmt, pct } from './utils/data'
 import './index.css'
@@ -13,11 +15,13 @@ import { MvcsLogo } from './components/MvcsLogo'
 import { Footer } from './components/Footer'
 
 const TABS = [
-  {id:'gerencial', label:'🏛', full:'Gerencial'},
-  {id:'resumen',   label:'📊', full:'Resumen'},
-  {id:'detalle',   label:'📋', full:'Detalle'},
-  {id:'maquinaria',label:'🚜', full:'Maquinaria'},
-  {id:'distribucion',label:'📦', full:'Distribución'},
+  {id:'gerencial',    label:'🏛', full:'Gerencial'},
+  {id:'resumen',      label:'📊', full:'Resumen'},
+  {id:'detalle',      label:'📋', full:'Detalle'},
+  {id:'maquinaria',   label:'🚜', full:'Maquinaria'},
+  {id:'mapa',         label:'🗺️', full:'Mapa UBOs'},
+  {id:'activos',      label:'⚙️', full:'Gestión Activos'},
+  {id:'distribucion', label:'📦', full:'Distribución'},
 ]
 const COLS=['#10B981','#F59E0B','#3B82F6','#EF4444','#8B5CF6','#888780']
 
@@ -259,6 +263,8 @@ export default function App() {
         {tab==='resumen'      && <Resumen      filtered={data.filtered} stats={data.stats}/>}
         {tab==='detalle'      && <Detalle      filtered={data.filtered} raw={data.raw}/>}
         {tab==='maquinaria'   && <Maquinaria   inventario={data.inventario} raw={data.raw} curUBO={data.curUBO}/>}
+        {tab==='mapa'         && <MapaUBOs     filtered={data.filtered} inventario={data.inventario} raw={data.raw}/>}
+        {tab==='activos'      && <GestionActivos inventario={data.inventario} raw={data.raw}/>}
         {tab==='distribucion' && <Distribucion filtered={data.filtered} inventario={data.inventario} raw={data.raw}/>}
       </div>
 
