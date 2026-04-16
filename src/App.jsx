@@ -5,6 +5,7 @@ import Gerencial from './pages/Gerencial'
 import Detalle from './pages/Detalle'
 import Distribucion from './pages/Distribucion'
 import Maquinaria from './pages/Maquinaria'
+import Login from './components/Login'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { fmt, pct } from './utils/data'
 import './index.css'
@@ -79,10 +80,29 @@ function Resumen({ filtered, stats }) {
 export default function App() {
   const data = useData()
   const [tab, setTab] = useState('gerencial')
-  // Modo claro fijo — identidad visual MVCS
   const [menuOpen, setMenuOpen] = useState(false)
   const [installPrompt, setInstallPrompt] = useState(null)
   const [showInstall, setShowInstall] = useState(false)
+
+  // ── AUTH ─────────────────────────────────────────────
+  const [currentUser, setCurrentUser] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('pnc_user')) || null } catch { return null }
+  })
+
+  const handleLogin = (user) => {
+    setCurrentUser(user)
+    sessionStorage.setItem('pnc_user', JSON.stringify(user))
+  }
+  const handleLogout = () => {
+    setCurrentUser(null)
+    sessionStorage.removeItem('pnc_user')
+    data.reset()
+  }
+
+  // Mostrar login si no hay usuario
+  if (!currentUser) return <Login onLogin={handleLogin}/>
+
+  const isAdmin = currentUser.role === 'admin'
 
   // PWA install prompt
   useState(() => {
@@ -190,11 +210,17 @@ export default function App() {
               {data.raw.length.toLocaleString()} registros
             </span>
           )}
-          {/* Acciones */}
-
+          {/* Usuario logueado */}
+          <span className="text-xs text-blue-200 hidden md:block flex-shrink-0">
+            👤 {currentUser.name.split(' ')[0]} {currentUser.role==='admin'?'· Admin':'· Viewer'}
+          </span>
           <button onClick={data.reset}
             className="text-blue-200 hover:text-white text-xs border border-blue-600 px-2 py-1 rounded flex-shrink-0 transition-colors">
             📂 Nuevo
+          </button>
+          <button onClick={handleLogout}
+            className="text-blue-200 hover:text-white text-xs border border-blue-600 px-2 py-1 rounded flex-shrink-0 transition-colors">
+            🚪 Salir
           </button>
         </div>
         {/* Línea inferior decorativa */}
