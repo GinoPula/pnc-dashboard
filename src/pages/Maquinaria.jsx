@@ -127,8 +127,9 @@ export default function Maquinaria({ inventario, curUBO, raw }) {
   const mp         = invFiltrado.filter(e=>e.clasificacion==='MP')
   const vp         = invFiltrado.filter(e=>e.clasificacion==='VP' && VP_OPERACION.includes(e.tipo_unidad))
   const totalOp    = mp.length + vp.length
-  const operativo  = invFiltrado.filter(e=>e.estado_maq==='OPERATIVO').length
-  const inoperativo= invFiltrado.filter(e=>e.estado_maq==='INOPERATIVO').length
+  // Operatividad solo sobre los 353 operacionales (MP + VP operacional)
+  const operativo  = [...mp,...vp].filter(e=>e.estado_maq==='OPERATIVO').length
+  const inoperativo= [...mp,...vp].filter(e=>e.estado_maq==='INOPERATIVO').length
   const mpOp       = mp.filter(e=>e.estado_maq==='OPERATIVO').length
   const mpInop     = mp.filter(e=>e.estado_maq==='INOPERATIVO').length
   const vpOp       = vp.filter(e=>e.estado_maq==='OPERATIVO').length

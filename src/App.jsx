@@ -15,11 +15,11 @@ import { MvcsLogo } from './components/MvcsLogo'
 import { Footer } from './components/Footer'
 
 const TABS = [
+  {id:'mapa',         label:'🗺️', full:'Mapa UBOs'},
   {id:'gerencial',    label:'🏛', full:'Gerencial'},
   {id:'resumen',      label:'📊', full:'Resumen'},
   {id:'detalle',      label:'📋', full:'Detalle'},
   {id:'maquinaria',   label:'🚜', full:'Maquinaria'},
-  {id:'mapa',         label:'🗺️', full:'Mapa UBOs'},
   {id:'activos',      label:'⚙️', full:'Gestión Activos'},
   {id:'distribucion', label:'📦', full:'Distribución'},
 ]
@@ -83,7 +83,7 @@ function Resumen({ filtered, stats }) {
 // ── APP ───────────────────────────────────────────────
 export default function App() {
   const data = useData()
-  const [tab, setTab] = useState('gerencial')
+  const [tab, setTab] = useState('mapa')
   const [menuOpen, setMenuOpen] = useState(false)
   const [installPrompt, setInstallPrompt] = useState(null)
   const [showInstall, setShowInstall] = useState(false)
