@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react'
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { useData } from './hooks/useData'
 import { FilterBar, KpiCard } from './components'
 import Gerencial from './pages/Gerencial'
@@ -103,19 +103,22 @@ export default function App() {
     data.reset()
   }
 
+  // PWA install prompt
+  useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setInstallPrompt(e); setShowInstall(true) }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const handleFiles = useCallback((files) => { if(files&&files.length>0) data.loadFiles(files) }, [data])
+  const onDrop = useCallback((e)=>{ e.preventDefault(); dropRef.current?.classList.remove('border-blue-500'); handleFiles(e.dataTransfer.files) }, [handleFiles])
+
   // Mostrar login si no hay usuario
   if (!currentUser) return <Login onLogin={handleLogin}/>
 
   const isAdmin = currentUser.role === 'admin'
 
-  // PWA install prompt
-  useState(() => {
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault()
-      setInstallPrompt(e)
-      setShowInstall(true)
-    })
-  })
+  // PWA install prompt handled via useEffect above
 
   const handleInstall = async () => {
     if (!installPrompt) return
@@ -126,8 +129,7 @@ export default function App() {
   }
   const dropRef = useRef()
 
-  const handleFiles = useCallback((files) => { if(files&&files.length>0) data.loadFiles(files) }, [data])
-  const onDrop = useCallback((e)=>{ e.preventDefault(); dropRef.current?.classList.remove('border-blue-500'); handleFiles(e.dataTransfer.files) }, [handleFiles])
+
 
   // ── UPLOAD ──────────────────────────────────────────
   if (!data.raw.length && !data.loading) {
