@@ -69,10 +69,8 @@ export default function Detalle({ filtered, raw }) {
     }
     if (sortBy) {
       const [field, dir] = sortBy.includes('_asc') ? [sortBy.replace('_asc',''),'asc'] : [sortBy.replace('_desc',''),'desc']
-      const pd = d => { if(!d)return 0; const m=d.match(/(\d{2})\/(\d{2})\/(\d{4})/); return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():0 }
       r = [...r].sort((a,b) => {
         if (field === 'porc_vol') { const va=a.porc_vol??-1,vb=b.porc_vol??-1; return dir==='asc'?va-vb:vb-va }
-        if (['f_ini','f_fin','ultimo_av'].includes(field)) { const va=pd(a[field]),vb=pd(b[field]); return dir==='asc'?va-vb:vb-va }
         return dir==='asc' ? String(a[field]||'').localeCompare(String(b[field]||'')) : String(b[field]||'').localeCompare(String(a[field]||''))
       })
     }
@@ -81,7 +79,7 @@ export default function Detalle({ filtered, raw }) {
 
   // ── EXPORT EXCEL COMPLETO ─────────────────────────────
   const exportExcel = useCallback(() => {
-    const headers = ['N°','UBO','Departamento','Provincia','Distrito','Tipo','Marco Legal','Estado','Avance%','M³ Ejec.','F. Inicio','F. Fin','Ficha_Intervención','Enlace Ficha','Tiene Cierre','N° Cierre','Unidad / Maquinaria']
+    const headers = ['N°','UBO','Departamento','Provincia','Distrito','Tipo','Marco Legal','Estado','Avance%','M³ Ejec.','F. Inicio','F. Fin','Ficha Técnica','Enlace Ficha','Tiene Cierre','N° Cierre','Unidad / Maquinaria']
     const data = rows.map(r => [
       r.num, r.ubo, r.dep, r.prov, r.dist, r.tipo, r.marco, r.estado,
       r.porc_vol!=null?+r.porc_vol.toFixed(2):null,
@@ -117,7 +115,7 @@ export default function Detalle({ filtered, raw }) {
       ['', 'Filtros aplicados:', `Estado: ${estadosLabel} | Meses: ${mesesLabel}`],
       [],
       ['', `${rows.length} Intervenciones del dia`],
-      ['N°','DEPARTAMENTO','PROVINCIA','DISTRITO','SECTOR','TIPO','MARCO LEGAL','DESCRIPCION','FECHA INICIO','FECHA FIN','MAQUINARIA'],
+      ['N°','DEPARTAMENTO','PROVINCIA','DISTRITO','SECTOR','TIPO','MARCO\nLEGAL','DESCRIPCION','FECHA\nINICIO','FECHA\nFIN','MAQUINARIA'],
       ...rows.map((r,i) => [
         i+1,
         r.dep,
@@ -201,11 +199,11 @@ export default function Detalle({ filtered, raw }) {
 
       {/* Botones export */}
       <div className="flex flex-wrap gap-2 mb-3 items-center">
-        <div className="flex-1 bg-yellow-50 border border-yellow-300 rounded-lg px-3 py-1.5">
-          <span className="text-sm font-extrabold text-yellow-800">{rows.length.toLocaleString()} intervenciones</span>
-          {!estSel.has('TODOS') && <span className="text-xs text-yellow-700 ml-2">· {[...estSel].join(' + ')}</span>}
-          {mesesSel.size>0 && <span className="text-xs text-yellow-700 ml-2">· Meses: {[...mesesSel].map(m=>MESES[m]||m).join(', ')}</span>}
-        </div>
+        <p className="text-xs text-slate-400 flex-1">
+          {rows.length.toLocaleString()} intervenciones
+          {!estSel.has('TODOS') && ` · ${[...estSel].join(' + ')}`}
+          {mesesSel.size>0 && ` · Meses: ${[...mesesSel].map(m=>MESES[m]||m).join(', ')}`}
+        </p>
         <button onClick={exportExcel}
           className="px-3 py-1 rounded-lg text-xs font-semibold border border-emerald-600 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
           ↓ Excel completo
@@ -213,10 +211,6 @@ export default function Detalle({ filtered, raw }) {
         <button onClick={exportExcelAsesores}
           className="px-3 py-1 rounded-lg text-xs font-semibold border border-[#1F3864] bg-blue-50 text-[#1F3864] hover:bg-blue-100">
           📋 Reporte Asesores Vice
-        </button>
-        <button onClick={exportPDF}
-          className="px-3 py-1 rounded-lg text-xs font-semibold border border-red-600 bg-red-50 text-red-700 hover:bg-red-100">
-          ↓ PDF
         </button>
       </div>
 
