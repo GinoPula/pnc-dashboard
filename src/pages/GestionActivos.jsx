@@ -25,6 +25,7 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
   const [estOpSel, setEstOpSel]   = useState('TODOS')
   const [activoSel, setActivoSel] = useState(null)
   const [tabActivo, setTabActivo] = useState('mantenimiento')
+  const [modalCosto, setModalCosto] = useState(null) // 'personal'|'combustible'|'mantenimiento'|'contratado'|'ejecutado'
 
   const ubos = useMemo(() => [...new Set(inventario.map(e=>e.ubo).filter(Boolean))].sort(), [inventario])
 
@@ -71,6 +72,26 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
       })
     })
     return c
+  }, [raw])
+
+  // Costos agrupados por UBO para modales
+  const costosPorUBO = useMemo(() => {
+    if (!raw?.length) return {}
+    const uboMap = {}
+    raw.forEach(r => {
+      const ubo = r.ubo || 'SIN UBO'
+      if (!uboMap[ubo]) uboMap[ubo] = { contratado:0, ejecutado:0, combustible:0, mantenimiento:0, personal:0, count:0, intervenciones:[] }
+      uboMap[ubo].contratado    += r.monto_contratado||0
+      uboMap[ubo].ejecutado     += r.monto_ejecutado ||0
+      uboMap[ubo].combustible   += (r.monto_comb_ap||0)+(r.monto_comb_mv||0)
+      uboMap[ubo].mantenimiento += (r.mto_ap||0)+(r.mto_mv||0)
+      uboMap[ubo].personal      += (r.monto_pers_ap||0)+(r.monto_pers_mv||0)
+      if ((r.monto_contratado||0)>0 || (r.monto_ejecutado||0)>0 || (r.monto_pers_ap||0)+(r.monto_pers_mv||0)>0) {
+        uboMap[ubo].count++
+        uboMap[ubo].intervenciones.push(r)
+      }
+    })
+    return uboMap
   }, [raw])
 
   const lista = useMemo(() => {
@@ -342,14 +363,47 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
                     </div>
                   )}
 
-                  {tabActivo === 'costos' && (
+                  {tabActivo === 'costos' && (() => {
+                    const [anioFilt, setAnioFilt] = window.__pncAnioFilt || [null,null]
+                    const [mesFilt,  setMesFilt]  = window.__pncMesFilt  || [null,null]
+                    // Get years/months from this equip's history
+                    const anios = [...new Set(hist.map(r=>r.anio).filter(Boolean))].sort()
+                    const meses = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Set','10':'Oct','11':'Nov','12':'Dic'}
+                    const [anioSel, setAnioSel] = useState('TODOS')
+                    const [mesSel2, setMesSel2] = useState('TODOS')
+                    const histFilt = hist.filter(r => {
+                      if (anioSel !== 'TODOS' && r.anio !== anioSel) return false
+                      if (mesSel2 !== 'TODOS' && r.mes  !== mesSel2) return false
+                      return (r.monto_contratado||0)+(r.monto_ejecutado||0)+(r.monto_comb_mv||0)+(r.monto_pers_ap||0)+(r.monto_pers_mv||0) > 0
+                    })
+                    const totalFilt = {
+                      contratado:  histFilt.reduce((a,r)=>a+(r.monto_contratado||0),0),
+                      ejecutado:   histFilt.reduce((a,r)=>a+(r.monto_ejecutado||0),0),
+                      combustible: histFilt.reduce((a,r)=>a+(r.monto_comb_ap||0)+(r.monto_comb_mv||0),0),
+                      personal:    histFilt.reduce((a,r)=>a+(r.monto_pers_ap||0)+(r.monto_pers_mv||0),0),
+                    }
+                    return (
                     <div className="space-y-4">
                       {costos.contratado > 0 ? (
                         <>
+                          {/* Filtros año/mes */}
+                          <div className="flex gap-2 flex-wrap">
+                            <select value={anioSel} onChange={e=>setAnioSel(e.target.value)}
+                              className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white focus:outline-none">
+                              <option value="TODOS">Todos los años</option>
+                              {anios.map(a=><option key={a} value={a}>{a}</option>)}
+                            </select>
+                            <select value={mesSel2} onChange={e=>setMesSel2(e.target.value)}
+                              className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white focus:outline-none">
+                              <option value="TODOS">Todos los meses</option>
+                              {Object.entries(meses).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+                            </select>
+                            <span className="text-xs text-slate-400 self-center">{histFilt.length} intervenciones con costos</span>
+                          </div>
                           <div className="bg-[#1F3864] rounded-xl p-4 text-white text-center">
-                            <div className="text-xs text-blue-300 uppercase mb-1">Monto Total Contratado</div>
-                            <div className="text-3xl font-extrabold">S/ {costos.contratado.toLocaleString('es-PE',{maximumFractionDigits:0})}</div>
-                            <div className="text-xs text-blue-300 mt-1">{costos.intervenciones} intervención{costos.intervenciones>1?'es':''}</div>
+                            <div className="text-xs text-blue-300 uppercase mb-1">Monto Total Contratado{anioSel!=='TODOS'?' — '+anioSel:''}</div>
+                            <div className="text-3xl font-extrabold">S/ {totalFilt.contratado.toLocaleString('es-PE',{maximumFractionDigits:0})}</div>
+                            <div className="text-xs text-blue-300 mt-1">{histFilt.length} intervención{histFilt.length!==1?'es':''}</div>
                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             {[
@@ -371,7 +425,7 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
                           </div>
                           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                             <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Detalle por Intervención</div>
-                            {hist.filter(r=>(r.monto_contratado||0)>0).map((r,i) => (
+                            {histFilt.map((r,i) => (
                               <div key={i} className="flex items-start justify-between py-2 border-b border-slate-200 last:border-0">
                                 <div>
                                   <div className="text-xs font-bold text-[#1F3864]">N°{r.num} · {r.ficha}</div>
@@ -394,7 +448,8 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
                         </div>
                       )}
                     </div>
-                  )}
+                    )
+                  })()}
 
                   {tabActivo === 'intervenciones' && (
                     <div className="space-y-2">
@@ -456,6 +511,124 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
           })()}
         </div>
       </div>
+
+      {/* Modal costos por UBO */}
+      {modalCosto && (() => {
+        const LABELS = { personal:'👷 Personal Contratado', ejecutado:'📊 Intervención Ejecutada', combustible:'⛽ Combustible', mantenimiento:'🔧 Mantenimiento', contratado:'💼 Total Contratado' }
+        const rows = Object.entries(costosPorUBO)
+          .map(([ubo, d]) => ({ ubo, valor: d[modalCosto]||0, count: d.count, ints: d.intervenciones }))
+          .filter(r => r.valor > 0)
+          .sort((a,b) => b.valor - a.valor)
+        const total = rows.reduce((a,r) => a+r.valor, 0)
+
+        const exportModalExcel = () => {
+          const wb = XLSX.utils.book_new()
+          const ws = XLSX.utils.aoa_to_sheet([
+            [LABELS[modalCosto] + ' — Detalle por UBO'],
+            ['Generado: ' + new Date().toLocaleDateString('es-PE')],
+            [],
+            ['UBO','Intervenciones con costo','Monto (S/)','% del Total'],
+            ...rows.map(r => [r.ubo, r.count, r.valor, total>0?+(r.valor/total*100).toFixed(1):0]),
+            [],
+            ['TOTAL', rows.reduce((a,r)=>a+r.count,0), total, 100]
+          ])
+          ws['!cols'] = [{wch:16},{wch:22},{wch:18},{wch:12}]
+          XLSX.utils.book_append_sheet(wb, ws, 'Costos por UBO')
+          // Detail sheet
+          const allInts = rows.flatMap(r => r.ints.map(i => [r.ubo, i.num||'—', i.ficha||'—', i.dep, i.tipo, i.f_ini||'—', i.monto_contratado||0, i.monto_ejecutado||0, (i.monto_pers_ap||0)+(i.monto_pers_mv||0), (i.monto_comb_ap||0)+(i.monto_comb_mv||0)]))
+          const ws2 = XLSX.utils.aoa_to_sheet([
+            ['DETALLE DE INTERVENCIONES'],
+            [],
+            ['UBO','N°','Ficha','Departamento','Tipo','Fecha Inicio','Contratado','Ejecutado','Personal','Combustible'],
+            ...allInts
+          ])
+          ws2['!cols'] = [{wch:14},{wch:6},{wch:30},{wch:14},{wch:18},{wch:12},{wch:14},{wch:14},{wch:12},{wch:12}]
+          XLSX.utils.book_append_sheet(wb, ws2, 'Detalle')
+          XLSX.writeFile(wb, 'PNC_Costos_' + modalCosto + '_' + new Date().toISOString().slice(0,10) + '.xlsx')
+        }
+
+        const exportModalPDF = () => {
+          const fecha = new Date().toLocaleDateString('es-PE')
+          const tbody = rows.map((r,i) =>
+            '<tr' + (i%2===0?'':' style="background:#F8FAFC"') + '>' +
+            '<td style="padding:5px 8px;font-weight:bold;color:#1F3864">' + r.ubo + '</td>' +
+            '<td style="padding:5px 8px;text-align:center">' + r.count + '</td>' +
+            '<td style="padding:5px 8px;text-align:right;font-weight:bold">S/ ' + r.valor.toLocaleString('es-PE',{maximumFractionDigits:0}) + '</td>' +
+            '<td style="padding:5px 8px;text-align:right;color:#64748B">' + (total>0?(r.valor/total*100).toFixed(1):0) + '%</td>' +
+            '</tr>'
+          ).join('')
+          const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
+            'body{font-family:Segoe UI,sans-serif;font-size:11px;padding:20px}' +
+            'h1{background:#1F3864;color:#fff;padding:12px 16px;border-radius:6px;font-size:14px;margin-bottom:12px}' +
+            'table{width:100%;border-collapse:collapse}' +
+            'th{background:#1F3864;color:#fff;padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase}' +
+            'td{padding:5px 8px;border-bottom:1px solid #E2E8F0}' +
+            '.total{background:#1F3864;color:#fff;font-weight:bold}' +
+            '@media print{@page{margin:1cm}}' +
+            '</style></head><body>' +
+            '<h1>' + LABELS[modalCosto] + ' — Detalle por UBO</h1>' +
+            '<p style="color:#64748B;font-size:10px;margin-bottom:12px">Total: S/ ' + total.toLocaleString('es-PE',{maximumFractionDigits:0}) + ' · ' + rows.length + ' UBOs · Generado: ' + fecha + '</p>' +
+            '<table><thead><tr><th>UBO</th><th>Intervenciones</th><th>Monto (S/)</th><th>% Total</th></tr></thead><tbody>' +
+            tbody +
+            '<tr class="total"><td>TOTAL</td><td style="text-align:center">' + rows.reduce((a,r)=>a+r.count,0) + '</td><td style="text-align:right">S/ ' + total.toLocaleString('es-PE',{maximumFractionDigits:0}) + '</td><td style="text-align:right">100%</td></tr>' +
+            '</tbody></table></body></html>'
+          const w = window.open('','_blank','width=900,height:600')
+          if (w) { w.document.write(html); w.document.close(); w.onload = () => { w.focus(); w.print() } }
+        }
+
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={()=>setModalCosto(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e=>e.stopPropagation()}>
+              <div className="bg-[#1F3864] px-6 py-4 rounded-t-2xl flex items-center justify-between">
+                <div>
+                  <div className="text-white font-extrabold text-base">{LABELS[modalCosto]}</div>
+                  <div className="text-blue-300 text-xs mt-0.5">Detalle por UBO · Total: S/ {total.toLocaleString('es-PE',{maximumFractionDigits:0})}</div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={exportModalExcel} className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold">↓ Excel</button>
+                  <button onClick={exportModalPDF}   className="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg font-semibold">↓ PDF</button>
+                  <button onClick={()=>setModalCosto(null)} className="text-white hover:text-red-300 text-xl font-bold ml-2">✕</button>
+                </div>
+              </div>
+              <div className="overflow-y-auto flex-1">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-slate-100">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase">UBO</th>
+                      <th className="px-4 py-3 text-center text-xs font-bold text-slate-600 uppercase">Intervenc.</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-slate-600 uppercase">Monto (S/)</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-slate-600 uppercase">% Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r,i) => (
+                      <tr key={r.ubo} className={i%2===0?'bg-white':'bg-slate-50'}>
+                        <td className="px-4 py-3 font-bold text-[#1F3864]">{r.ubo}</td>
+                        <td className="px-4 py-3 text-center text-slate-600">{r.count}</td>
+                        <td className="px-4 py-3 text-right font-extrabold text-[#1F3864]">
+                          S/ {r.valor.toLocaleString('es-PE',{maximumFractionDigits:0})}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-bold">
+                            {total>0?(r.valor/total*100).toFixed(1):0}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-[#1F3864]">
+                      <td className="px-4 py-3 text-white font-extrabold">TOTAL</td>
+                      <td className="px-4 py-3 text-center text-white font-bold">{rows.reduce((a,r)=>a+r.count,0)}</td>
+                      <td className="px-4 py-3 text-right text-white font-extrabold">S/ {total.toLocaleString('es-PE',{maximumFractionDigits:0})}</td>
+                      <td className="px-4 py-3 text-right text-white font-bold">100%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
     </div>
   )
 }
