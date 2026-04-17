@@ -102,6 +102,8 @@ export function procesarIntervenciones(rows) {
       porc_km:sf(r.PORC_KM),
       acum_km_raw:sf(r.ACUMULADO_KM),
       cod_emergencia:sv(r.COD_EMERGENCIA),
+      lat: r.LAT || r.Lat || null,
+      lng: r.LONG || r.Long || r.LNG || null,
     }
   }).filter(r=>{
     if (!r.dep) return false

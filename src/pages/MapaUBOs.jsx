@@ -38,10 +38,12 @@ export default function MapaUBOs({ filtered, inventario, raw }) {
   const markersRef = useRef([])
   const [uboSel, setUboSel] = useState('TODOS')
   const [estSel, setEstSel] = useState('TODOS')
+  const [mesSel, setMesSel] = useState('TODOS')
   const [ready, setReady]   = useState(false)
 
   const base = useMemo(() => (raw?.length > 0 ? raw : filtered), [raw, filtered])
-  const ubos = useMemo(() => [...new Set(base.map(r => r.ubo).filter(Boolean))].sort(), [base])
+  const ubos  = useMemo(() => [...new Set(base.map(r => r.ubo).filter(Boolean))].sort(), [base])
+  const meses = useMemo(() => [...new Set(base.map(r => r.mes).filter(Boolean))].sort(), [base])
 
   const intsMostrar = useMemo(() => {
     let r = uboSel === 'TODOS' ? base : base.filter(r => r.ubo === uboSel)
@@ -53,8 +55,9 @@ export default function MapaUBOs({ filtered, inventario, raw }) {
         return x.estado === estSel
       })
     }
+    if (mesSel !== 'TODOS') r = r.filter(x => x.mes === mesSel)
     return r.filter(x => x.lat && x.lng && Math.abs(parseFloat(x.lat)) > 0)
-  }, [base, uboSel, estSel])
+  }, [base, uboSel, estSel, mesSel])
 
   const stats = useMemo(() => {
     const data = uboSel === 'TODOS' ? base : base.filter(r => r.ubo === uboSel)
@@ -205,6 +208,10 @@ export default function MapaUBOs({ filtered, inventario, raw }) {
         <select value={uboSel} onChange={e => setUboSel(e.target.value)} className={clsSel}>
           <option value="TODOS">🌍 Todas las UBOs</option>
           {ubos.map(u => <option key={u} value={u}>{u}</option>)}
+        </select>
+        <select value={mesSel} onChange={e => setMesSel(e.target.value)} className={clsSel}>
+          <option value="TODOS">Todos los meses</option>
+          {meses.map(m => <option key={m} value={m}>{{'01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Setiembre','10':'Octubre','11':'Noviembre','12':'Diciembre'}[m]||m}</option>)}
         </select>
         <select value={estSel} onChange={e => setEstSel(e.target.value)} className={clsSel} disabled={uboSel === 'TODOS'}>
           <option value="TODOS">Todos los estados</option>
