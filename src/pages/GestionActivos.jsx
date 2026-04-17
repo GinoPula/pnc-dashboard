@@ -25,7 +25,9 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
   const [estOpSel, setEstOpSel]   = useState('TODOS')
   const [activoSel, setActivoSel] = useState(null)
   const [tabActivo, setTabActivo] = useState('mantenimiento')
-  const [modalCosto, setModalCosto] = useState(null) // 'personal'|'combustible'|'mantenimiento'|'contratado'|'ejecutado'
+  const [modalCosto, setModalCosto] = useState(null)
+  const [anioSel, setAnioSel]     = useState('TODOS')
+  const [mesSel2, setMesSel2]     = useState('TODOS')
 
   const ubos = useMemo(() => [...new Set(inventario.map(e=>e.ubo).filter(Boolean))].sort(), [inventario])
 
@@ -86,7 +88,8 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
       uboMap[ubo].combustible   += (r.monto_comb_ap||0)+(r.monto_comb_mv||0)
       uboMap[ubo].mantenimiento += (r.mto_ap||0)+(r.mto_mv||0)
       uboMap[ubo].personal      += (r.monto_pers_ap||0)+(r.monto_pers_mv||0)
-      if ((r.monto_contratado||0)>0 || (r.monto_ejecutado||0)>0 || (r.monto_pers_ap||0)+(r.monto_pers_mv||0)>0) {
+      const hasCost = (r.monto_contratado||0)+(r.monto_ejecutado||0)+(r.monto_comb_ap||0)+(r.monto_comb_mv||0)+(r.mto_ap||0)+(r.mto_mv||0)+(r.monto_pers_ap||0)+(r.monto_pers_mv||0)
+      if (hasCost > 0) {
         uboMap[ubo].count++
         uboMap[ubo].intervenciones.push(r)
       }
@@ -364,13 +367,8 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
                   )}
 
                   {tabActivo === 'costos' && (() => {
-                    const [anioFilt, setAnioFilt] = window.__pncAnioFilt || [null,null]
-                    const [mesFilt,  setMesFilt]  = window.__pncMesFilt  || [null,null]
-                    // Get years/months from this equip's history
                     const anios = [...new Set(hist.map(r=>r.anio).filter(Boolean))].sort()
                     const meses = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Set','10':'Oct','11':'Nov','12':'Dic'}
-                    const [anioSel, setAnioSel] = useState('TODOS')
-                    const [mesSel2, setMesSel2] = useState('TODOS')
                     const histFilt = hist.filter(r => {
                       if (anioSel !== 'TODOS' && r.anio !== anioSel) return false
                       if (mesSel2 !== 'TODOS' && r.mes  !== mesSel2) return false

@@ -93,6 +93,8 @@ export default function App() {
     try { return JSON.parse(sessionStorage.getItem('pnc_user')) || null } catch { return null }
   })
 
+  const dropRef = useRef()
+
   const handleLogin = (user) => {
     setCurrentUser(user)
     sessionStorage.setItem('pnc_user', JSON.stringify(user))
@@ -127,8 +129,6 @@ export default function App() {
     setShowInstall(false)
     setInstallPrompt(null)
   }
-  const dropRef = useRef()
-
 
 
   // ── UPLOAD ──────────────────────────────────────────
