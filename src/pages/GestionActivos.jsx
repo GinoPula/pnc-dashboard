@@ -2,35 +2,44 @@ import { useState, useMemo, useCallback } from 'react'
 import * as XLSX from 'xlsx'
 
 const VP_OPERACION = ['VOLQUETE', 'CAMION CISTERNA DE AGUA']
-
-const TIPO_COLOR = {
-  'MANTENIMIENTO PREVENTIVO':             '#10B981',
-  'MANTENIMIENTO  CORRECTIVO PROGRAMADO': '#3B82F6',
+const MESES_LABEL = {'01':'Enero','02':'Febrero','03':'Marzo','04':'Abril','05':'Mayo','06':'Junio','07':'Julio','08':'Agosto','09':'Setiembre','10':'Octubre','11':'Noviembre','12':'Diciembre'}
+const TIPO_OT_COLOR = {
+  'MANTENIMIENTO PREVENTIVO':              '#10B981',
+  'MANTENIMIENTO  CORRECTIVO PROGRAMADO':  '#3B82F6',
   'MANTENIMIENTO CORRECTIVO NO PROGRAMADO':'#F59E0B',
-  'GARANTIA':             '#8B5CF6',
-  'ACCIDENTE O SINIESTRO':'#EF4444',
-  'REPARACION GENERAL':   '#EC4899',
+  'GARANTIA':              '#8B5CF6',
+  'ACCIDENTE O SINIESTRO': '#EF4444',
+  'REPARACION GENERAL':    '#EC4899',
 }
-const ESTADO_COLOR = {
-  'CERRADO':       '#10B981',
-  'GENERADA':      '#3B82F6',
-  'EN PROCESO':    '#F59E0B',
-  'EN ADQUISICION':'#8B5CF6',
+const ESTADO_OT_COLOR = {
+  'CERRADO':        '#10B981',
+  'GENERADA':       '#3B82F6',
+  'EN PROCESO':     '#F59E0B',
+  'EN ADQUISICION': '#8B5CF6',
 }
+const fmtS = n => n > 0 ? 'S/ ' + Number(n).toLocaleString('es-PE',{maximumFractionDigits:0}) : '—'
 
 export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
-  const [busq, setBusq]           = useState('')
-  const [uboSel, setUboSel]       = useState('TODOS')
-  const [flotaSel, setFlotaSel]   = useState('TODOS')
-  const [estOpSel, setEstOpSel]   = useState('TODOS')
+  // ── Filtros lista ─────────────────────────────────────
+  const [busq,      setBusq]      = useState('')
+  const [uboSel,    setUboSel]    = useState('TODOS')
+  const [flotaSel,  setFlotaSel]  = useState('TODOS')
+  const [estOpSel,  setEstOpSel]  = useState('TODOS')
+  // ── Detalle equipo ────────────────────────────────────
   const [activoSel, setActivoSel] = useState(null)
   const [tabActivo, setTabActivo] = useState('mantenimiento')
+  // ── Filtros tab OT ───────────────────────────────────
+  const [otMesSel,  setOtMesSel]  = useState('TODOS')
+  const [otTipoSel, setOtTipoSel] = useState('TODOS')
+  // ── Filtros tab Costos ───────────────────────────────
+  const [costoAnio, setCostoAnio] = useState('TODOS')
+  const [costoMes,  setCostoMes]  = useState('TODOS')
+  // ── Modal costos nacionales ──────────────────────────
   const [modalCosto, setModalCosto] = useState(null)
-  const [anioSel, setAnioSel]     = useState('TODOS')
-  const [mesSel2, setMesSel2]     = useState('TODOS')
 
   const ubos = useMemo(() => [...new Set(inventario.map(e=>e.ubo).filter(Boolean))].sort(), [inventario])
 
+  // Solo los 353
   const activos353 = useMemo(() =>
     inventario.filter(e =>
       e.clasificacion === 'MP' ||
@@ -38,65 +47,72 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
     )
   , [inventario])
 
-  // OT por código
+  // OT por código de equipo
   const otPorCodigo = useMemo(() => {
     const m = {}
     ordenesOT.forEach(ot => {
       if (!m[ot.codigo]) m[ot.codigo] = []
       m[ot.codigo].push(ot)
     })
-    // Sort by fecha desc
     Object.keys(m).forEach(k => {
       m[k].sort((a,b) => {
-        const pa = d => { if(!d||d==='null')return new Date(0); const parts=d.split('/'); return parts.length===3?new Date(+parts[2],+parts[1]-1,+parts[0]):new Date(0) }
-        return pa(b.fecha)-pa(a.fecha)
+        const pd = d => { if(!d||d==='null')return 0; const p=d.split('/'); return p.length===3?new Date(+p[2],+p[1]-1,+p[0]).getTime():0 }
+        return pd(b.fecha)-pd(a.fecha)
       })
     })
     return m
   }, [ordenesOT])
 
-  // Costos por código
-  const costosPorCodigo = useMemo(() => {
+  // Costos de INTERVENCIONES por código de equipo
+  const costosInt = useMemo(() => {
     const c = {}
     if (!raw?.length) return c
     raw.forEach(r => {
       r.maquinas?.forEach(m => {
-        if (!c[m.cod]) c[m.cod] = {contratado:0,ejecutado:0,comb_ap:0,comb_mv:0,mto_ap:0,mto_mv:0,pers_ap:0,pers_mv:0,intervenciones:0}
-        c[m.cod].contratado  += r.monto_contratado||0
-        c[m.cod].ejecutado   += r.monto_ejecutado ||0
-        c[m.cod].comb_ap     += r.monto_comb_ap   ||0
-        c[m.cod].comb_mv     += r.monto_comb_mv   ||0
-        c[m.cod].mto_ap      += r.mto_ap          ||0
-        c[m.cod].mto_mv      += r.mto_mv          ||0
-        c[m.cod].pers_ap     += r.monto_pers_ap   ||0
-        c[m.cod].pers_mv     += r.monto_pers_mv   ||0
-        c[m.cod].intervenciones++
+        if (!c[m.cod]) c[m.cod] = {contratado:0,ejecutado:0,comb:0,mto:0,personal:0,n:0,items:[]}
+        c[m.cod].contratado += r.monto_contratado||0
+        c[m.cod].ejecutado  += r.monto_ejecutado ||0
+        c[m.cod].comb       += (r.monto_comb_ap||0)+(r.monto_comb_mv||0)
+        c[m.cod].mto        += (r.mto_ap||0)+(r.mto_mv||0)
+        c[m.cod].personal   += (r.monto_pers_ap||0)+(r.monto_pers_mv||0)
+        c[m.cod].n++
+        c[m.cod].items.push(r)
       })
     })
     return c
   }, [raw])
 
-  // Costos agrupados por UBO para modales
-  const costosPorUBO = useMemo(() => {
-    if (!raw?.length) return {}
-    const uboMap = {}
+  // Costos de INTERVENCIONES agrupados por UBO (para modal)
+  const costosUBO = useMemo(() => {
+    const m = {}
+    if (!raw?.length) return m
     raw.forEach(r => {
       const ubo = r.ubo || 'SIN UBO'
-      if (!uboMap[ubo]) uboMap[ubo] = { contratado:0, ejecutado:0, combustible:0, mantenimiento:0, personal:0, count:0, intervenciones:[] }
-      uboMap[ubo].contratado    += r.monto_contratado||0
-      uboMap[ubo].ejecutado     += r.monto_ejecutado ||0
-      uboMap[ubo].combustible   += (r.monto_comb_ap||0)+(r.monto_comb_mv||0)
-      uboMap[ubo].mantenimiento += (r.mto_ap||0)+(r.mto_mv||0)
-      uboMap[ubo].personal      += (r.monto_pers_ap||0)+(r.monto_pers_mv||0)
+      if (!m[ubo]) m[ubo] = {contratado:0,ejecutado:0,comb:0,mto:0,personal:0,n:0}
+      m[ubo].contratado += r.monto_contratado||0
+      m[ubo].ejecutado  += r.monto_ejecutado ||0
+      m[ubo].comb       += (r.monto_comb_ap||0)+(r.monto_comb_mv||0)
+      m[ubo].mto        += (r.mto_ap||0)+(r.mto_mv||0)
+      m[ubo].personal   += (r.monto_pers_ap||0)+(r.monto_pers_mv||0)
       const hasCost = (r.monto_contratado||0)+(r.monto_ejecutado||0)+(r.monto_comb_ap||0)+(r.monto_comb_mv||0)+(r.mto_ap||0)+(r.mto_mv||0)+(r.monto_pers_ap||0)+(r.monto_pers_mv||0)
-      if (hasCost > 0) {
-        uboMap[ubo].count++
-        uboMap[ubo].intervenciones.push(r)
-      }
+      if (hasCost > 0) m[ubo].n++
     })
-    return uboMap
+    return m
   }, [raw])
 
+  // Totales nacionales
+  const totales = useMemo(() => {
+    const v = Object.values(costosUBO)
+    return {
+      contratado: v.reduce((a,c)=>a+c.contratado,0),
+      ejecutado:  v.reduce((a,c)=>a+c.ejecutado,0),
+      comb:       v.reduce((a,c)=>a+c.comb,0),
+      mto:        v.reduce((a,c)=>a+c.mto,0),
+      personal:   v.reduce((a,c)=>a+c.personal,0),
+    }
+  }, [costosUBO])
+
+  // Lista filtrada
   const lista = useMemo(() => {
     let r = activos353
     if (uboSel   !== 'TODOS') r = r.filter(e => e.ubo === uboSel)
@@ -109,83 +125,91 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
     return r
   }, [activos353, uboSel, flotaSel, estOpSel, busq])
 
-  const getHistorialInt = useCallback((codigo) => {
+  const getHistInt = useCallback((cod) => {
     if (!raw?.length) return []
-    return raw.filter(r => r.maquinas?.some(m => m.cod === codigo))
+    return raw.filter(r => r.maquinas?.some(m => m.cod === cod))
       .sort((a,b) => {
-        const pd = d => { if(!d)return new Date(0); const m=d.match(/(\d{2})\/(\d{2})\/(\d{4})/); return m?new Date(+m[3],+m[2]-1,+m[1]):new Date(0) }
+        const pd = d => { if(!d)return 0; const m=d.match(/(\d{2})\/(\d{2})\/(\d{4})/); return m?new Date(+m[3],+m[2]-1,+m[1]).getTime():0 }
         return pd(b.f_ini)-pd(a.f_ini)
       })
   }, [raw])
 
-  const exportExcel = useCallback(() => {
-    const headers = ['Código','Clasificación','Tipo','Marca','Modelo','Año','UBO','Operatividad','Horómetro','Kilometraje','N° OTs','N° Intervenciones','Monto Contratado','Combustible MVCS','Mantenimiento MVCS','Personal MVCS','Comentario']
-    const data = lista.map(e => {
-      const c  = costosPorCodigo[e.codigo] || {}
-      const ots = otPorCodigo[e.codigo] || []
-      return [e.codigo,e.clasificacion,e.tipo_unidad,e.marca,e.modelo,e.anio_fab,e.ubo,e.estado_maq,e.horometro,e.kilometraje,ots.length,c.intervenciones||0,c.contratado||0,c.comb_mv||0,c.mto_mv||0,c.pers_mv||0,e.comentario]
-    })
+  const exportLista = useCallback(() => {
     const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.aoa_to_sheet([['GESTIÓN DE ACTIVOS — PNC MAQUINARIAS'],[`UBO: ${uboSel} | Total: ${lista.length}`],[`Generado: ${new Date().toLocaleDateString('es-PE')}`],[],headers,...data])
-    XLSX.utils.book_append_sheet(wb, ws, 'Activos')
-    XLSX.writeFile(wb, `PNC_GestionActivos_${new Date().toISOString().slice(0,10)}.xlsx`)
-  }, [lista, uboSel, costosPorCodigo, otPorCodigo])
-
-  const totalCostos = useMemo(() => {
-    const v = Object.values(costosPorCodigo)
-    return { contratado:v.reduce((a,c)=>a+c.contratado,0), ejecutado:v.reduce((a,c)=>a+c.ejecutado,0), combustible:v.reduce((a,c)=>a+c.comb_ap+c.comb_mv,0), mto:v.reduce((a,c)=>a+c.mto_ap+c.mto_mv,0), personal:v.reduce((a,c)=>a+c.pers_ap+c.pers_mv,0) }
-  }, [costosPorCodigo])
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['GESTIÓN DE ACTIVOS — PNC MAQUINARIAS'],
+      ['UBO: '+uboSel+' | Total: '+lista.length],
+      ['Generado: '+new Date().toLocaleDateString('es-PE')],[],
+      ['Código','Clasificación','Tipo','Marca','Modelo','Año','UBO','Operatividad','Horómetro','Kilometraje','N° OTs','Costo Contratado','Personal','Combustible','Observación'],
+      ...lista.map(e => {
+        const c = costosInt[e.codigo]||{}
+        const ots = otPorCodigo[e.codigo]||[]
+        return [e.codigo,e.clasificacion,e.tipo_unidad,e.marca,e.modelo,e.anio_fab,e.ubo,e.estado_maq,e.horometro,e.kilometraje,ots.length,c.contratado||0,c.personal||0,c.comb||0,e.comentario]
+      })
+    ])
+    ws['!cols']=[{wch:12},{wch:10},{wch:24},{wch:14},{wch:14},{wch:6},{wch:14},{wch:12},{wch:12},{wch:14},{wch:8},{wch:16},{wch:14},{wch:12},{wch:40}]
+    XLSX.utils.book_append_sheet(wb,ws,'Activos')
+    XLSX.writeFile(wb,'PNC_GestionActivos_'+new Date().toISOString().slice(0,10)+'.xlsx')
+  }, [lista, uboSel, costosInt, otPorCodigo])
 
   const sel = 'text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-[#1F3864]'
-  const tabBtn = id => `px-3 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${tabActivo===id?'bg-[#1F3864] text-white':'bg-slate-100 text-slate-600 hover:bg-slate-200'}`
+  const tabBtn = id => 'px-3 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ' + (tabActivo===id?'bg-[#1F3864] text-white':'bg-slate-100 text-slate-600 hover:bg-slate-200')
   const opCount   = activos353.filter(e=>e.estado_maq==='OPERATIVO').length
   const inopCount = activos353.filter(e=>e.estado_maq==='INOPERATIVO').length
 
+  // ── RENDER ─────────────────────────────────────────────
   return (
     <div className="p-3 sm:p-4 space-y-4">
       <div>
         <h2 className="text-lg font-extrabold text-[#1F3864]">⚙️ Gestión de Activos</h2>
-        <p className="text-xs text-slate-500">Mantenimiento, OT, costos de los 353 equipos operacionales{ordenesOT.length>0?` · ${ordenesOT.length} órdenes de trabajo`:' · Carga el Excel de OT para ver historial de mantenimiento'}</p>
+        <p className="text-xs text-slate-500">353 equipos operacionales · {ordenesOT.length} OTs de mantenimiento{ordenesOT.length===0?' (carga el Excel de OT para ver historial)':''}</p>
       </div>
 
+      {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {[
-          {l:'Total Operacional', v:activos353.length, c:'text-[#1F3864]',   b:'border-t-blue-600'},
-          {l:'Operativos',        v:opCount,           c:'text-emerald-700', b:'border-t-emerald-500'},
-          {l:'Inoperativos',      v:inopCount,         c:'text-red-700',     b:'border-t-red-500'},
-          {l:'OTs registradas',   v:ordenesOT.length,  c:'text-purple-700',  b:'border-t-purple-500'},
-          {l:'Costo contratado',  v:totalCostos.contratado>0?`S/ ${(totalCostos.contratado/1000).toFixed(0)}K`:'—', c:'text-amber-700', b:'border-t-amber-500'},
+          {l:'Total Operacional',v:activos353.length,c:'text-[#1F3864]',   b:'border-t-blue-600'},
+          {l:'Operativos',       v:opCount,          c:'text-emerald-700', b:'border-t-emerald-500'},
+          {l:'Inoperativos',     v:inopCount,        c:'text-red-700',     b:'border-t-red-500'},
+          {l:'OTs registradas',  v:ordenesOT.length, c:'text-purple-700',  b:'border-t-purple-500'},
+          {l:'Costo Contratado', v:totales.contratado>0?'S/ '+(totales.contratado/1000000).toFixed(2)+'M':'—', c:'text-amber-700', b:'border-t-amber-500'},
         ].map(({l,v,c,b}) => (
-          <div key={l} className={`bg-white border border-slate-200 border-t-4 ${b} rounded-xl p-3 shadow-sm`}>
-            <div className={`text-2xl font-extrabold ${c}`}>{v}</div>
+          <div key={l} className={'bg-white border border-slate-200 border-t-4 '+b+' rounded-xl p-3 shadow-sm'}>
+            <div className={'text-2xl font-extrabold '+c}>{v}</div>
             <div className="text-xs text-slate-400 mt-1">{l}</div>
           </div>
         ))}
       </div>
 
-      {totalCostos.contratado > 0 && (
+      {/* Costos nacionales — tarjetas clicables */}
+      {totales.contratado > 0 && (
         <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">💰 Resumen de Costos por Intervención — Nacional</div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">💰 Costos por Intervención — Nacional (clic para ver detalle por UBO)</div>
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {[
-              {l:'Personal Contratado', v:totalCostos.personal,    c:'text-blue-700',   icon:'👷'},
-              {l:'Intervención Ejec.',  v:totalCostos.ejecutado,   c:'text-emerald-700',icon:'📊'},
-              {l:'Combustible',         v:totalCostos.combustible, c:'text-amber-700',  icon:'⛽'},
-              {l:'Mantenimiento',       v:totalCostos.mto,         c:'text-orange-700', icon:'🔧'},
-              {l:'Total Contratado',    v:totalCostos.contratado,  c:'text-[#1F3864]',  icon:'💼'},
-            ].map(({l,v,c,icon}) => (
-              <div key={l} className="bg-slate-50 rounded-xl p-3 text-center border border-slate-200">
+              {l:'Personal Contratado', v:totales.personal,    c:'text-blue-700',   icon:'👷', key:'personal'},
+              {l:'Intervención Ejec.',  v:totales.ejecutado,   c:'text-emerald-700',icon:'📊', key:'ejecutado'},
+              {l:'Combustible',         v:totales.comb,        c:'text-amber-700',  icon:'⛽', key:'comb'},
+              {l:'Mantenimiento',       v:totales.mto,         c:'text-orange-700', icon:'🔧', key:'mto'},
+              {l:'Total Contratado',    v:totales.contratado,  c:'text-[#1F3864]',  icon:'💼', key:'contratado'},
+            ].map(({l,v,c,icon,key}) => (
+              <div key={l} onClick={()=>v>0&&setModalCosto(key)}
+                className={'bg-slate-50 rounded-xl p-3 text-center border border-slate-200 transition-all '+(v>0?'cursor-pointer hover:border-blue-400 hover:shadow-md hover:bg-blue-50':'')}>
                 <div className="text-lg mb-1">{icon}</div>
-                <div className={`text-sm font-extrabold ${c}`}>{v>0?`S/ ${v.toLocaleString('es-PE',{maximumFractionDigits:0})}`:'—'}</div>
+                <div className={'text-sm font-extrabold '+c}>{v>0?fmtS(v):'—'}</div>
                 <div className="text-xs text-slate-400 mt-1">{l}</div>
+                {v>0&&<div className="text-xs text-blue-500 mt-1">Ver detalle →</div>}
               </div>
             ))}
           </div>
         </div>
       )}
 
+      {/* Filtros lista */}
       <div className="flex flex-wrap gap-2 items-center bg-white border border-slate-200 rounded-xl p-3">
-        <input className="flex-1 min-w-[200px] text-xs border border-slate-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:border-[#1F3864]"
+        <input className="flex-1 min-w-[180px] text-xs border border-slate-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:border-[#1F3864]"
           placeholder="🔍 Código, tipo, marca, UBO..." value={busq} onChange={e=>setBusq(e.target.value)}/>
         <select className={sel} value={uboSel} onChange={e=>setUboSel(e.target.value)}>
           <option value="TODOS">Todas las UBOs</option>
@@ -202,58 +226,85 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
           <option value="INOPERATIVO">Inoperativos</option>
         </select>
         <span className="text-xs text-slate-400">{lista.length} equipos</span>
-        <button onClick={exportExcel} className="ml-auto px-3 py-1.5 text-xs font-semibold border border-emerald-600 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg">↓ Excel</button>
+        <button onClick={exportLista} className="ml-auto px-3 py-1.5 text-xs font-semibold border border-emerald-600 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg">↓ Excel</button>
       </div>
 
+      {/* Lista + Detalle */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        {/* Lista equipos */}
         <div className="lg:col-span-1 bg-white border border-slate-200 rounded-xl overflow-hidden">
           <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 text-xs font-bold text-slate-600 uppercase tracking-wide">Equipos ({lista.length})</div>
           <div className="overflow-y-auto" style={{maxHeight:'580px'}}>
             {lista.map((e,i) => {
-              const esOp   = e.estado_maq === 'OPERATIVO'
-              const costos = costosPorCodigo[e.codigo]
-              const ots    = otPorCodigo[e.codigo] || []
-              const isSel  = activoSel?.codigo === e.codigo
+              const esOp  = e.estado_maq==='OPERATIVO'
+              const c     = costosInt[e.codigo]||{}
+              const ots   = otPorCodigo[e.codigo]||[]
+              const isSel = activoSel?.codigo===e.codigo
               return (
-                <div key={i} onClick={() => { setActivoSel(e); setTabActivo('mantenimiento') }}
-                  className={`px-3 py-2.5 border-b border-slate-100 cursor-pointer transition-colors ${isSel?'bg-blue-50 border-l-4 border-l-[#1F3864]':'hover:bg-slate-50'}`}>
+                <div key={i} onClick={()=>{setActivoSel(e);setTabActivo('mantenimiento');setOtMesSel('TODOS');setOtTipoSel('TODOS');setCostoAnio('TODOS');setCostoMes('TODOS')}}
+                  className={'px-3 py-2.5 border-b border-slate-100 cursor-pointer transition-colors '+(isSel?'bg-blue-50 border-l-4 border-l-[#1F3864]':'hover:bg-slate-50')}>
                   <div className="flex items-center justify-between mb-0.5">
                     <span className="font-mono font-bold text-xs text-[#1F3864]">{e.codigo}</span>
-                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${esOp?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}`}>{esOp?'✓ OP':'✗ INOP'}</span>
+                    <span className={'text-xs font-bold px-1.5 py-0.5 rounded-full '+(esOp?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700')}>{esOp?'✓ OP':'✗ INOP'}</span>
                   </div>
                   <div className="text-xs text-slate-600 truncate">{e.tipo_unidad}</div>
                   <div className="flex items-center justify-between mt-0.5">
                     <span className="text-xs text-slate-400">{e.ubo}</span>
                     <div className="flex gap-1">
-                      {ots.length > 0 && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 rounded-full">{ots.length} OT</span>}
-                      {costos?.contratado > 0 && <span className="text-xs text-amber-600 font-semibold">S/{(costos.contratado/1000).toFixed(0)}K</span>}
+                      {ots.length>0&&<span className="text-xs bg-purple-100 text-purple-700 px-1.5 rounded-full">{ots.length} OT</span>}
+                      {c.contratado>0&&<span className="text-xs text-amber-600 font-semibold">S/{(c.contratado/1000).toFixed(0)}K</span>}
                     </div>
                   </div>
                 </div>
               )
             })}
-            {lista.length === 0 && <div className="p-8 text-center text-slate-400 text-xs">Sin resultados</div>}
+            {lista.length===0&&<div className="p-8 text-center text-slate-400 text-xs">Sin resultados</div>}
           </div>
         </div>
 
+        {/* Panel detalle */}
         <div className="lg:col-span-2">
           {!activoSel ? (
             <div className="bg-white border border-slate-200 rounded-xl h-full flex items-center justify-center">
-              <div className="text-center p-8 text-slate-400">
-                <div className="text-4xl mb-2">🚜</div>
-                <p className="text-sm">Selecciona un equipo para ver su ficha</p>
-              </div>
+              <div className="text-center p-8 text-slate-400"><div className="text-4xl mb-2">🚜</div><p className="text-sm">Selecciona un equipo</p></div>
             </div>
           ) : (() => {
-            const hist    = getHistorialInt(activoSel.codigo)
-            const ots     = otPorCodigo[activoSel.codigo] || []
-            const costos  = costosPorCodigo[activoSel.codigo] || {}
-            const esOp    = activoSel.estado_maq === 'OPERATIVO'
-            const progr   = hist.filter(r => r.estado_g === 'PROGRAMADA')
-            const enEj    = hist.filter(r => r.estado?.normalize('NFC') === 'EN EJECUCIÓN')
-            const ejec    = hist.filter(r => r.estado === 'EJECUTADA')
+            const hist   = getHistInt(activoSel.codigo)
+            const ots    = otPorCodigo[activoSel.codigo]||[]
+            const c      = costosInt[activoSel.codigo]||{}
+            const esOp   = activoSel.estado_maq==='OPERATIVO'
+            const enEj   = hist.filter(r=>r.estado?.normalize('NFC').toUpperCase()==='EN EJECUCIÓN')
+            const progr  = hist.filter(r=>r.estado_g==='PROGRAMADA')
+
+            // OT filtradas
+            const otAnios = [...new Set(ots.map(o=>o.fecha?.split('/')[2]).filter(Boolean))].sort()
+            const otMeses = [...new Set(ots.map(o=>{ const p=o.fecha?.split('/'); return p?.length===3?p[1]:null }).filter(Boolean))].sort()
+            const otsTipos = [...new Set(ots.map(o=>o.tipo).filter(Boolean))]
+            const otsFilt = ots.filter(o => {
+              if (otMesSel!=='TODOS') { const p=o.fecha?.split('/'); if(!p||p[1]!==otMesSel) return false }
+              if (otTipoSel!=='TODOS' && o.tipo!==otTipoSel) return false
+              return true
+            })
+
+            // Costos filtrados por año/mes
+            const aniosCosto = [...new Set(hist.map(r=>r.anio).filter(Boolean))].sort()
+            const histCostoFilt = hist.filter(r => {
+              if (costoAnio!=='TODOS' && r.anio!==costoAnio) return false
+              if (costoMes !=='TODOS' && r.mes !==costoMes)  return false
+              const total=(r.monto_contratado||0)+(r.monto_ejecutado||0)+(r.monto_comb_ap||0)+(r.monto_comb_mv||0)+(r.mto_ap||0)+(r.mto_mv||0)+(r.monto_pers_ap||0)+(r.monto_pers_mv||0)
+              return total>0
+            })
+            const totCostoFilt = {
+              contratado: histCostoFilt.reduce((a,r)=>a+(r.monto_contratado||0),0),
+              personal:   histCostoFilt.reduce((a,r)=>a+(r.monto_pers_ap||0)+(r.monto_pers_mv||0),0),
+              comb:       histCostoFilt.reduce((a,r)=>a+(r.monto_comb_ap||0)+(r.monto_comb_mv||0),0),
+              mto:        histCostoFilt.reduce((a,r)=>a+(r.mto_ap||0)+(r.mto_mv||0),0),
+            }
+
             return (
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                {/* Header */}
                 <div className="bg-[#1F3864] px-4 py-3">
                   <div className="flex items-start justify-between mb-2">
                     <div>
@@ -261,12 +312,10 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
                       <div className="text-blue-300 text-xs mt-0.5">{activoSel.tipo_unidad} · {activoSel.marca} {activoSel.modelo} ({activoSel.anio_fab})</div>
                       <div className="text-blue-200 text-xs mt-0.5">UBO: {activoSel.ubo} · {activoSel.clasificacion}</div>
                     </div>
-                    <span className={`text-xs font-bold px-3 py-1 rounded-full flex-shrink-0 ${esOp?'bg-emerald-500 text-white':'bg-red-500 text-white'}`}>
-                      {esOp?'✓ OPERATIVO':'✗ INOPERATIVO'}
-                    </span>
+                    <span className={'text-xs font-bold px-3 py-1 rounded-full flex-shrink-0 '+(esOp?'bg-emerald-500 text-white':'bg-red-500 text-white')}>{esOp?'✓ OPERATIVO':'✗ INOPERATIVO'}</span>
                   </div>
                   <div className="grid grid-cols-4 gap-2">
-                    {[{l:'Horómetro',v:activoSel.horometro||'—'},{l:'Kilometraje',v:activoSel.kilometraje||'—'},{l:'OTs mant.',v:ots.length},{l:'Intervenc.',v:hist.length}].map(({l,v}) => (
+                    {[{l:'Horómetro',v:activoSel.horometro||'—'},{l:'Kilometraje',v:activoSel.kilometraje||'—'},{l:'OTs Mant.',v:ots.length},{l:'Intervenc.',v:hist.length}].map(({l,v})=>(
                       <div key={l} className="bg-white/10 rounded-lg px-2 py-1.5 text-center">
                         <div className="text-white font-bold text-xs">{v}</div>
                         <div className="text-blue-300 text-xs">{l}</div>
@@ -275,27 +324,29 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
                   </div>
                 </div>
 
+                {/* Tabs */}
                 <div className="flex gap-2 p-3 border-b border-slate-200 bg-slate-50 overflow-x-auto">
                   <button className={tabBtn('mantenimiento')} onClick={()=>setTabActivo('mantenimiento')}>🔧 Estado</button>
                   <button className={tabBtn('ot')}            onClick={()=>setTabActivo('ot')}>📋 Historial OT ({ots.length})</button>
-                  <button className={tabBtn('costos')}        onClick={()=>setTabActivo('costos')}>💰 Costos</button>
+                  <button className={tabBtn('costos')}        onClick={()=>setTabActivo('costos')}>💰 Costos Intervención</button>
                   <button className={tabBtn('intervenciones')}onClick={()=>setTabActivo('intervenciones')}>🚜 Intervenciones ({hist.length})</button>
                   <button className={tabBtn('programacion')}  onClick={()=>setTabActivo('programacion')}>📅 Prog. ({progr.length+enEj.length})</button>
                 </div>
 
-                <div className="p-4 overflow-y-auto" style={{maxHeight:'420px'}}>
+                <div className="p-4 overflow-y-auto" style={{maxHeight:'440px'}}>
 
-                  {tabActivo === 'mantenimiento' && (
+                  {/* TAB: ESTADO/MANTENIMIENTO */}
+                  {tabActivo==='mantenimiento' && (
                     <div className="space-y-4">
-                      <div className={`rounded-xl p-4 ${esOp?'bg-emerald-50 border border-emerald-200':'bg-red-50 border border-red-200'}`}>
-                        <div className={`text-base font-extrabold mb-1 ${esOp?'text-emerald-700':'text-red-700'}`}>
+                      <div className={'rounded-xl p-4 '+(esOp?'bg-emerald-50 border border-emerald-200':'bg-red-50 border border-red-200')}>
+                        <div className={'text-base font-extrabold mb-1 '+(esOp?'text-emerald-700':'text-red-700')}>
                           {esOp?'✓ OPERATIVO — Equipo en condiciones de operar':'✗ INOPERATIVO — Requiere atención de mantenimiento'}
                         </div>
                         <div className="text-xs text-slate-500">Última actualización: {activoSel.fecha_registro||'—'}</div>
                       </div>
-                      {activoSel.comentario && (
+                      {activoSel.comentario&&(
                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                          <div className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-2">💬 Observación del Área de Mantenimiento</div>
+                          <div className="text-xs font-bold text-amber-700 uppercase mb-2">💬 Observación del Área de Mantenimiento</div>
                           <p className="text-sm text-slate-700 leading-relaxed">{activoSel.comentario}</p>
                         </div>
                       )}
@@ -308,158 +359,162 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
                         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
                           <div className="text-xs font-bold text-blue-600 uppercase mb-1">Kilometraje</div>
                           <div className="text-2xl font-extrabold text-blue-700">{activoSel.kilometraje||'—'}</div>
-                          <div className="text-xs text-blue-500 mt-1">Kilómetros recorridos</div>
+                          <div className="text-xs text-blue-500 mt-1">Km recorridos</div>
                         </div>
                       </div>
                       <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                        <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Ficha Técnica</div>
+                        <div className="text-xs font-bold text-slate-500 uppercase mb-3">Ficha Técnica</div>
                         <div className="grid grid-cols-2 gap-2">
-                          {[['Código',activoSel.codigo],['Clasificación',activoSel.clasificacion],['Tipo',activoSel.tipo_unidad],['Marca',activoSel.marca],['Modelo',activoSel.modelo],['Año',activoSel.anio_fab||'—'],['UBO',activoSel.ubo],['Últ. registro',activoSel.fecha_registro||'—']].map(([l,v]) => (
+                          {[['Código',activoSel.codigo],['Clasificación',activoSel.clasificacion],['Tipo',activoSel.tipo_unidad],['Marca',activoSel.marca],['Modelo',activoSel.modelo],['Año',activoSel.anio_fab||'—'],['UBO',activoSel.ubo],['Últ. registro',activoSel.fecha_registro||'—']].map(([l,v])=>(
                             <div key={l}><div className="text-xs text-slate-400">{l}</div><div className="text-xs text-slate-700 font-semibold">{v}</div></div>
                           ))}
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div className="bg-purple-50 rounded-lg p-2 border border-purple-200"><div className="text-lg font-extrabold text-purple-700">{ots.length}</div><div className="text-xs text-slate-400">OTs mantenimiento</div></div>
-                        <div className="bg-emerald-50 rounded-lg p-2 border border-emerald-200"><div className="text-lg font-extrabold text-emerald-700">{ejec.length}</div><div className="text-xs text-slate-400">Intervenciones ejec.</div></div>
+                        <div className="bg-emerald-50 rounded-lg p-2 border border-emerald-200"><div className="text-lg font-extrabold text-emerald-700">{hist.filter(r=>r.estado==='EJECUTADA').length}</div><div className="text-xs text-slate-400">Intervenc. ejec.</div></div>
                         <div className="bg-amber-50 rounded-lg p-2 border border-amber-200"><div className="text-lg font-extrabold text-amber-700">{enEj.length}</div><div className="text-xs text-slate-400">En ejecución</div></div>
                       </div>
                     </div>
                   )}
 
-                  {tabActivo === 'ot' && (
-                    <div className="space-y-2">
-                      {ots.length > 0 ? (
+                  {/* TAB: HISTORIAL OT — Área de Mantenimiento */}
+                  {tabActivo==='ot' && (
+                    <div className="space-y-3">
+                      {ots.length>0 ? (
                         <>
-                          <p className="text-xs text-slate-500 mb-3">{ots.length} órdenes de trabajo registradas</p>
-                          {ots.map((ot,i) => {
-                            const color = TIPO_COLOR[ot.tipo] || '#888'
-                            const estColor = ESTADO_COLOR[ot.estado] || '#888'
+                          {/* Filtros OT */}
+                          <div className="flex flex-wrap gap-2 p-2 bg-slate-50 rounded-lg border border-slate-200">
+                            <select className={sel} value={otMesSel} onChange={e=>setOtMesSel(e.target.value)}>
+                              <option value="TODOS">Todos los meses</option>
+                              {otMeses.map(m=><option key={m} value={m}>{MESES_LABEL[m]||m}</option>)}
+                            </select>
+                            <select className={sel} value={otTipoSel} onChange={e=>setOtTipoSel(e.target.value)}>
+                              <option value="TODOS">Todos los tipos</option>
+                              {otsTipos.map(t=><option key={t} value={t}>{t.replace('MANTENIMIENTO ','MNT ')}</option>)}
+                            </select>
+                            <span className="text-xs text-slate-500 self-center">{otsFilt.length} OTs · {otsFilt.filter(o=>o.estado==='CERRADO').length} cerradas</span>
+                          </div>
+                          <p className="text-xs text-slate-400 italic">Órdenes de trabajo emitidas por el Área de Mantenimiento — no incluyen montos (no registrados en el Excel)</p>
+                          {otsFilt.map((ot,i) => {
+                            const tColor = TIPO_OT_COLOR[ot.tipo]||'#888'
+                            const eColor = ESTADO_OT_COLOR[ot.estado]||'#888'
                             return (
                               <div key={i} className="border border-slate-200 rounded-xl p-3 bg-slate-50">
-                                <div className="flex items-start justify-between mb-1">
+                                <div className="flex items-start justify-between mb-1 gap-2">
                                   <span className="font-bold text-xs text-[#1F3864]">{ot.numero}</span>
                                   <div className="flex gap-1 flex-wrap justify-end">
-                                    <span style={{background:color+'20',color,border:`1px solid ${color}50`}} className="text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
+                                    <span style={{background:tColor+'20',color:tColor,border:'1px solid '+tColor+'50'}} className="text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
                                       {ot.tipo.replace('MANTENIMIENTO ','MNT ').replace(' PROGRAMADO',' PROG.').replace(' NO PROGRAMADO',' NO PROG.')}
                                     </span>
-                                    <span style={{background:estColor+'20',color:estColor}} className="text-xs font-bold px-2 py-0.5 rounded-full">{ot.estado||'—'}</span>
+                                    <span style={{background:eColor+'20',color:eColor}} className="text-xs font-bold px-2 py-0.5 rounded-full">{ot.estado||'—'}</span>
                                   </div>
                                 </div>
                                 <div className="text-xs text-slate-700 mt-1 leading-relaxed">{ot.titulo}</div>
                                 <div className="flex gap-3 mt-1 text-xs text-slate-400 flex-wrap">
                                   <span>📅 {ot.fecha||'—'}</span>
-                                  {ot.entidad && <span>🏢 {ot.entidad}</span>}
-                                  {ot.area && ot.area !== 'null' && <span>📁 {ot.area}</span>}
+                                  {ot.entidad&&ot.entidad!=='null'&&<span>🏢 {ot.entidad}</span>}
+                                  {ot.area&&ot.area!=='null'&&<span>📁 {ot.area}</span>}
                                 </div>
                               </div>
                             )
                           })}
+                          {otsFilt.length===0&&<div className="text-center py-6 text-slate-400 text-xs">Sin OTs para el filtro seleccionado</div>}
                         </>
                       ) : (
                         <div className="text-center py-8 text-slate-400">
                           <div className="text-3xl mb-2">📋</div>
-                          <p className="text-sm">Sin órdenes de trabajo registradas</p>
+                          <p className="text-sm">Sin órdenes de trabajo</p>
                           <p className="text-xs mt-1 text-slate-300">Carga el Excel de Ordenes de Trabajo del MAIN</p>
                         </div>
                       )}
                     </div>
                   )}
 
-                  {tabActivo === 'costos' && (() => {
-                    const anios = [...new Set(hist.map(r=>r.anio).filter(Boolean))].sort()
-                    const meses = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Set','10':'Oct','11':'Nov','12':'Dic'}
-                    const histFilt = hist.filter(r => {
-                      if (anioSel !== 'TODOS' && r.anio !== anioSel) return false
-                      if (mesSel2 !== 'TODOS' && r.mes  !== mesSel2) return false
-                      return (r.monto_contratado||0)+(r.monto_ejecutado||0)+(r.monto_comb_mv||0)+(r.monto_pers_ap||0)+(r.monto_pers_mv||0) > 0
-                    })
-                    const totalFilt = {
-                      contratado:  histFilt.reduce((a,r)=>a+(r.monto_contratado||0),0),
-                      ejecutado:   histFilt.reduce((a,r)=>a+(r.monto_ejecutado||0),0),
-                      combustible: histFilt.reduce((a,r)=>a+(r.monto_comb_ap||0)+(r.monto_comb_mv||0),0),
-                      personal:    histFilt.reduce((a,r)=>a+(r.monto_pers_ap||0)+(r.monto_pers_mv||0),0),
-                    }
-                    return (
+                  {/* TAB: COSTOS DE INTERVENCIÓN */}
+                  {tabActivo==='costos' && (
                     <div className="space-y-4">
-                      {costos.contratado > 0 ? (
+                      {c.contratado>0 ? (
                         <>
+                          <div className="text-xs text-slate-400 italic bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                            💡 Estos costos corresponden a las <strong>intervenciones de campo</strong>, registrados en el Excel de Intervenciones del MAIN. No incluyen costos del área de mantenimiento (OT).
+                          </div>
                           {/* Filtros año/mes */}
-                          <div className="flex gap-2 flex-wrap">
-                            <select value={anioSel} onChange={e=>setAnioSel(e.target.value)}
-                              className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white focus:outline-none">
+                          <div className="flex gap-2 flex-wrap items-center bg-slate-50 rounded-lg p-2 border border-slate-200">
+                            <select className={sel} value={costoAnio} onChange={e=>setCostoAnio(e.target.value)}>
                               <option value="TODOS">Todos los años</option>
-                              {anios.map(a=><option key={a} value={a}>{a}</option>)}
+                              {aniosCosto.map(a=><option key={a} value={a}>{a}</option>)}
                             </select>
-                            <select value={mesSel2} onChange={e=>setMesSel2(e.target.value)}
-                              className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white focus:outline-none">
+                            <select className={sel} value={costoMes} onChange={e=>setCostoMes(e.target.value)}>
                               <option value="TODOS">Todos los meses</option>
-                              {Object.entries(meses).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+                              {Object.entries(MESES_LABEL).map(([k,v])=><option key={k} value={k}>{v}</option>)}
                             </select>
-                            <span className="text-xs text-slate-400 self-center">{histFilt.length} intervenciones con costos</span>
+                            <span className="text-xs text-slate-500">{histCostoFilt.length} intervenciones con costos</span>
                           </div>
+                          {/* Resumen filtrado */}
                           <div className="bg-[#1F3864] rounded-xl p-4 text-white text-center">
-                            <div className="text-xs text-blue-300 uppercase mb-1">Monto Total Contratado{anioSel!=='TODOS'?' — '+anioSel:''}</div>
-                            <div className="text-3xl font-extrabold">S/ {totalFilt.contratado.toLocaleString('es-PE',{maximumFractionDigits:0})}</div>
-                            <div className="text-xs text-blue-300 mt-1">{histFilt.length} intervención{histFilt.length!==1?'es':''}</div>
+                            <div className="text-xs text-blue-300 uppercase mb-1">
+                              Total Contratado{costoAnio!=='TODOS'?' — '+costoAnio:''}{costoMes!=='TODOS'?' / '+MESES_LABEL[costoMes]:''}
+                            </div>
+                            <div className="text-3xl font-extrabold">S/ {totCostoFilt.contratado.toLocaleString('es-PE',{maximumFractionDigits:0})}</div>
+                            <div className="text-xs text-blue-300 mt-1">{histCostoFilt.length} intervención{histCostoFilt.length!==1?'es':''}</div>
                           </div>
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             {[
-                              {l:'Personal Contratado',  ap:costos.pers_ap,  mv:costos.pers_mv,  icon:'👷', c:'blue'},
-                              {l:'Intervención Ejec.',   ap:costos.ejecutado,mv:0,               icon:'📊', c:'emerald'},
-                              {l:'Combustible',          ap:costos.comb_ap,  mv:costos.comb_mv,  icon:'⛽', c:'amber'},
-                              {l:'Mantenimiento',        ap:costos.mto_ap,   mv:costos.mto_mv,   icon:'🔧', c:'orange'},
-                            ].map(({l,ap,mv,icon,c}) => {
-                              const total = (ap||0)+(mv||0)
-                              return total > 0 ? (
-                                <div key={l} className={`bg-${c}-50 border border-${c}-200 rounded-xl p-3`}>
-                                  <div className="text-lg mb-1">{icon}</div>
-                                  <div className={`text-base font-extrabold text-${c}-700`}>S/ {total.toLocaleString('es-PE',{maximumFractionDigits:0})}</div>
-                                  <div className="text-xs text-slate-500 mt-1">{l}</div>
-                                  {ap>0&&mv>0&&<div className="text-xs text-slate-400 mt-1">Aportes: S/{ap.toLocaleString('es-PE',{maximumFractionDigits:0})} · MVCS: S/{mv.toLocaleString('es-PE',{maximumFractionDigits:0})}</div>}
-                                </div>
-                              ) : null
-                            })}
-                          </div>
-                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Detalle por Intervención</div>
-                            {histFilt.map((r,i) => (
-                              <div key={i} className="flex items-start justify-between py-2 border-b border-slate-200 last:border-0">
-                                <div>
-                                  <div className="text-xs font-bold text-[#1F3864]">N°{r.num} · {r.ficha}</div>
-                                  <div className="text-xs text-slate-400">{r.dep} · {r.tipo}</div>
-                                </div>
-                                <div className="text-right">
-                                  <div className="text-xs font-bold text-[#1F3864]">S/ {r.monto_contratado.toLocaleString('es-PE',{maximumFractionDigits:0})}</div>
-                                  {(r.pers_ap||0)+(r.monto_pers_mv||0)>0&&<div className="text-xs text-blue-600">👷 S/{((r.monto_pers_ap||0)+(r.monto_pers_mv||0)).toLocaleString('es-PE',{maximumFractionDigits:0})}</div>}
-                                  {(r.monto_comb_ap||0)+(r.monto_comb_mv||0)>0&&<div className="text-xs text-amber-600">⛽ S/{((r.monto_comb_ap||0)+(r.monto_comb_mv||0)).toLocaleString('es-PE',{maximumFractionDigits:0})}</div>}
-                                </div>
+                              {l:'Personal',     v:totCostoFilt.personal, icon:'👷', c:'blue'},
+                              {l:'Combustible',  v:totCostoFilt.comb,     icon:'⛽', c:'amber'},
+                              {l:'Mantenimiento',v:totCostoFilt.mto,      icon:'🔧', c:'orange'},
+                              {l:'Ejecutado',    v:histCostoFilt.reduce((a,r)=>a+(r.monto_ejecutado||0),0), icon:'📊', c:'emerald'},
+                            ].filter(d=>d.v>0).map(({l,v,icon,c})=>(
+                              <div key={l} className={'bg-'+c+'-50 border border-'+c+'-200 rounded-xl p-3 text-center'}>
+                                <div className="text-lg">{icon}</div>
+                                <div className={'text-sm font-extrabold text-'+c+'-700 mt-1'}>S/ {v.toLocaleString('es-PE',{maximumFractionDigits:0})}</div>
+                                <div className="text-xs text-slate-400 mt-1">{l}</div>
                               </div>
                             ))}
                           </div>
+                          {/* Detalle por intervención */}
+                          {histCostoFilt.length>0&&(
+                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                              <div className="text-xs font-bold text-slate-500 uppercase mb-3">Detalle por Intervención</div>
+                              {histCostoFilt.map((r,i)=>(
+                                <div key={i} className="flex items-start justify-between py-2 border-b border-slate-200 last:border-0">
+                                  <div>
+                                    <div className="text-xs font-bold text-[#1F3864]">N°{r.num} · {r.ficha}</div>
+                                    <div className="text-xs text-slate-400">{r.dep} · {r.tipo} · {r.f_ini||'—'}</div>
+                                  </div>
+                                  <div className="text-right">
+                                    {(r.monto_contratado||0)>0&&<div className="text-xs font-bold text-[#1F3864]">S/ {r.monto_contratado.toLocaleString('es-PE',{maximumFractionDigits:0})}</div>}
+                                    {(r.monto_pers_ap||0)+(r.monto_pers_mv||0)>0&&<div className="text-xs text-blue-600">👷 S/ {((r.monto_pers_ap||0)+(r.monto_pers_mv||0)).toLocaleString('es-PE',{maximumFractionDigits:0})}</div>}
+                                    {(r.monto_comb_ap||0)+(r.monto_comb_mv||0)>0&&<div className="text-xs text-amber-600">⛽ S/ {((r.monto_comb_ap||0)+(r.monto_comb_mv||0)).toLocaleString('es-PE',{maximumFractionDigits:0})}</div>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </>
                       ) : (
                         <div className="text-center py-8 text-slate-400">
                           <div className="text-3xl mb-2">💰</div>
-                          <p className="text-sm">Sin costos registrados</p>
+                          <p className="text-sm">Sin costos de intervención registrados</p>
                           <p className="text-xs mt-1 text-slate-300">Los montos se registran cuando hay convenio activo</p>
                         </div>
                       )}
                     </div>
-                    )
-                  })()}
+                  )}
 
-                  {tabActivo === 'intervenciones' && (
+                  {/* TAB: INTERVENCIONES */}
+                  {tabActivo==='intervenciones' && (
                     <div className="space-y-2">
-                      {hist.length > 0 ? hist.map((r,i) => {
-                        const isEj=r.estado==='EJECUTADA',isEn=r.estado?.normalize('NFC')==='EN EJECUCIÓN',isPr=r.estado_g==='PROGRAMADA'
+                      {hist.length>0?hist.map((r,i)=>{
+                        const isEj=r.estado==='EJECUTADA',isEn=r.estado?.normalize('NFC').toUpperCase()==='EN EJECUCIÓN',isPr=r.estado_g==='PROGRAMADA'
                         const bg=isEj?'bg-emerald-50 border-emerald-200':isEn?'bg-amber-50 border-amber-200':isPr?'bg-blue-50 border-blue-200':'bg-slate-50 border-slate-200'
                         const tc=isEj?'bg-emerald-200 text-emerald-800':isEn?'bg-amber-200 text-amber-800':isPr?'bg-blue-200 text-blue-800':'bg-slate-200 text-slate-700'
                         return (
-                          <div key={i} className={`border ${bg} rounded-xl p-3`}>
+                          <div key={i} className={'border '+bg+' rounded-xl p-3'}>
                             <div className="flex items-start justify-between mb-1">
                               <span className="font-bold text-xs text-[#1F3864]">N°{r.num} · {r.ficha}</span>
-                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${tc}`}>{r.estado}</span>
+                              <span className={'text-xs font-bold px-2 py-0.5 rounded-full '+tc}>{r.estado}</span>
                             </div>
                             <div className="text-xs text-slate-600">{r.ubo} · {r.dep} · {r.prov}</div>
                             <div className="text-xs text-slate-500 mt-0.5">{r.tipo}</div>
@@ -471,11 +526,12 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
                             </div>
                           </div>
                         )
-                      }) : <div className="text-center py-8 text-slate-400"><div className="text-3xl mb-2">📭</div><p className="text-sm">Sin intervenciones</p></div>}
+                      }):<div className="text-center py-8 text-slate-400"><div className="text-3xl mb-2">📭</div><p className="text-sm">Sin intervenciones</p></div>}
                     </div>
                   )}
 
-                  {tabActivo === 'programacion' && (
+                  {/* TAB: PROGRAMACIÓN */}
+                  {tabActivo==='programacion' && (
                     <div className="space-y-4">
                       {enEj.length>0&&<div>
                         <div className="text-xs font-bold text-amber-700 uppercase mb-2">🔄 En Ejecución ({enEj.length})</div>
@@ -493,13 +549,11 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
                         {progr.map((r,i)=>(
                           <div key={i} className="border border-blue-200 bg-blue-50 rounded-xl p-3 mb-2">
                             <div className="font-bold text-xs text-[#1F3864]">N°{r.num} · {r.ficha}</div>
-                            <div className="text-xs text-slate-600 mt-1">{r.dep} · {r.prov} · {r.tipo}</div>
-                            <div className="text-xs text-slate-500 font-semibold mt-0.5">{r.estado}</div>
+                            <div className="text-xs text-slate-600 mt-1">{r.dep} · {r.prov}</div>
                             <div className="text-xs text-slate-400 mt-1">📅 {r.f_ini||'—'} → {r.f_fin||'—'}</div>
-                            {r.meta_vol>0&&<div className="text-xs text-blue-600 mt-1">Meta: {r.meta_vol.toLocaleString('es-PE',{maximumFractionDigits:0})} m³</div>}
                           </div>
                         ))}
-                      </div>:enEj.length===0&&<div className="text-center py-8 text-slate-400"><div className="text-3xl mb-2">📅</div><p className="text-sm">Sin intervenciones programadas</p><p className="text-xs mt-1">Equipo disponible</p></div>}
+                      </div>:enEj.length===0&&<div className="text-center py-8 text-slate-400"><div className="text-3xl mb-2">📅</div><p className="text-sm">Sin programación activa</p></div>}
                     </div>
                   )}
 
@@ -511,116 +565,89 @@ export default function GestionActivos({ inventario, raw, ordenesOT = [] }) {
       </div>
 
       {/* Modal costos por UBO */}
-      {modalCosto && (() => {
-        const LABELS = { personal:'👷 Personal Contratado', ejecutado:'📊 Intervención Ejecutada', combustible:'⛽ Combustible', mantenimiento:'🔧 Mantenimiento', contratado:'💼 Total Contratado' }
-        const rows = Object.entries(costosPorUBO)
-          .map(([ubo, d]) => ({ ubo, valor: d[modalCosto]||0, count: d.count, ints: d.intervenciones }))
-          .filter(r => r.valor > 0)
-          .sort((a,b) => b.valor - a.valor)
-        const total = rows.reduce((a,r) => a+r.valor, 0)
+      {modalCosto&&(()=>{
+        const LABELS = {personal:'👷 Personal Contratado',ejecutado:'📊 Intervención Ejecutada',comb:'⛽ Combustible',mto:'🔧 Mantenimiento',contratado:'💼 Total Contratado'}
+        const rows = Object.entries(costosUBO)
+          .map(([ubo,d])=>({ubo,valor:d[modalCosto]||0,n:d.n}))
+          .filter(r=>r.valor>0)
+          .sort((a,b)=>b.valor-a.valor)
+        const total = rows.reduce((a,r)=>a+r.valor,0)
 
-        const exportModalExcel = () => {
+        const exportModal = () => {
           const wb = XLSX.utils.book_new()
           const ws = XLSX.utils.aoa_to_sheet([
-            [LABELS[modalCosto] + ' — Detalle por UBO'],
-            ['Generado: ' + new Date().toLocaleDateString('es-PE')],
-            [],
+            [LABELS[modalCosto]+' — Por UBO'],['Generado: '+new Date().toLocaleDateString('es-PE')],[],
             ['UBO','Intervenciones con costo','Monto (S/)','% del Total'],
-            ...rows.map(r => [r.ubo, r.count, r.valor, total>0?+(r.valor/total*100).toFixed(1):0]),
-            [],
-            ['TOTAL', rows.reduce((a,r)=>a+r.count,0), total, 100]
+            ...rows.map(r=>[r.ubo,r.n,r.valor,total>0?+(r.valor/total*100).toFixed(1):0]),
+            [],['TOTAL',rows.reduce((a,r)=>a+r.n,0),total,100]
           ])
-          ws['!cols'] = [{wch:16},{wch:22},{wch:18},{wch:12}]
-          XLSX.utils.book_append_sheet(wb, ws, 'Costos por UBO')
-          // Detail sheet
-          const allInts = rows.flatMap(r => r.ints.map(i => [r.ubo, i.num||'—', i.ficha||'—', i.dep, i.tipo, i.f_ini||'—', i.monto_contratado||0, i.monto_ejecutado||0, (i.monto_pers_ap||0)+(i.monto_pers_mv||0), (i.monto_comb_ap||0)+(i.monto_comb_mv||0)]))
-          const ws2 = XLSX.utils.aoa_to_sheet([
-            ['DETALLE DE INTERVENCIONES'],
-            [],
-            ['UBO','N°','Ficha','Departamento','Tipo','Fecha Inicio','Contratado','Ejecutado','Personal','Combustible'],
-            ...allInts
-          ])
-          ws2['!cols'] = [{wch:14},{wch:6},{wch:30},{wch:14},{wch:18},{wch:12},{wch:14},{wch:14},{wch:12},{wch:12}]
-          XLSX.utils.book_append_sheet(wb, ws2, 'Detalle')
-          XLSX.writeFile(wb, 'PNC_Costos_' + modalCosto + '_' + new Date().toISOString().slice(0,10) + '.xlsx')
+          ws['!cols']=[{wch:16},{wch:22},{wch:18},{wch:12}]
+          XLSX.utils.book_append_sheet(wb,ws,'Por UBO')
+          XLSX.writeFile(wb,'PNC_Costos_'+modalCosto+'_'+new Date().toISOString().slice(0,10)+'.xlsx')
         }
 
-        const exportModalPDF = () => {
+        const exportPDF = () => {
           const fecha = new Date().toLocaleDateString('es-PE')
-          const tbody = rows.map((r,i) =>
-            '<tr' + (i%2===0?'':' style="background:#F8FAFC"') + '>' +
-            '<td style="padding:5px 8px;font-weight:bold;color:#1F3864">' + r.ubo + '</td>' +
-            '<td style="padding:5px 8px;text-align:center">' + r.count + '</td>' +
-            '<td style="padding:5px 8px;text-align:right;font-weight:bold">S/ ' + r.valor.toLocaleString('es-PE',{maximumFractionDigits:0}) + '</td>' +
-            '<td style="padding:5px 8px;text-align:right;color:#64748B">' + (total>0?(r.valor/total*100).toFixed(1):0) + '%</td>' +
-            '</tr>'
-          ).join('')
-          const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
-            'body{font-family:Segoe UI,sans-serif;font-size:11px;padding:20px}' +
-            'h1{background:#1F3864;color:#fff;padding:12px 16px;border-radius:6px;font-size:14px;margin-bottom:12px}' +
-            'table{width:100%;border-collapse:collapse}' +
-            'th{background:#1F3864;color:#fff;padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase}' +
-            'td{padding:5px 8px;border-bottom:1px solid #E2E8F0}' +
-            '.total{background:#1F3864;color:#fff;font-weight:bold}' +
-            '@media print{@page{margin:1cm}}' +
-            '</style></head><body>' +
-            '<h1>' + LABELS[modalCosto] + ' — Detalle por UBO</h1>' +
-            '<p style="color:#64748B;font-size:10px;margin-bottom:12px">Total: S/ ' + total.toLocaleString('es-PE',{maximumFractionDigits:0}) + ' · ' + rows.length + ' UBOs · Generado: ' + fecha + '</p>' +
-            '<table><thead><tr><th>UBO</th><th>Intervenciones</th><th>Monto (S/)</th><th>% Total</th></tr></thead><tbody>' +
-            tbody +
-            '<tr class="total"><td>TOTAL</td><td style="text-align:center">' + rows.reduce((a,r)=>a+r.count,0) + '</td><td style="text-align:right">S/ ' + total.toLocaleString('es-PE',{maximumFractionDigits:0}) + '</td><td style="text-align:right">100%</td></tr>' +
-            '</tbody></table></body></html>'
-          const w = window.open('','_blank','width=900,height:600')
-          if (w) { w.document.write(html); w.document.close(); w.onload = () => { w.focus(); w.print() } }
+          const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Segoe UI,sans-serif;font-size:11px;padding:20px}h1{background:#1F3864;color:#fff;padding:12px;border-radius:6px;font-size:14px}table{width:100%;border-collapse:collapse}th{background:#1F3864;color:#fff;padding:6px 8px;text-align:left;font-size:10px}td{padding:5px 8px;border-bottom:1px solid #E2E8F0}.tot{background:#1F3864;color:#fff;font-weight:bold}tr:nth-child(even) td{background:#F8FAFC}@media print{@page{margin:1cm}}</style></head><body>'
+            +'<h1>'+LABELS[modalCosto]+' — Detalle por UBO</h1>'
+            +'<p style="color:#64748B;font-size:10px;margin-bottom:12px">Total: S/ '+total.toLocaleString('es-PE',{maximumFractionDigits:0})+' · Generado: '+fecha+'</p>'
+            +'<table><thead><tr><th>UBO</th><th>Intervenciones</th><th>Monto (S/)</th><th>% Total</th></tr></thead><tbody>'
+            +rows.map((r,i)=>'<tr'+(i%2?' style="background:#F8FAFC"':'')+"><td><b>"+r.ubo+"</b></td><td style='text-align:center'>"+r.n+"</td><td style='text-align:right;font-weight:bold'>S/ "+r.valor.toLocaleString('es-PE',{maximumFractionDigits:0})+"</td><td style='text-align:right'>"+(total>0?(r.valor/total*100).toFixed(1):0)+"%</td></tr>").join('')
+            +'<tr class="tot"><td>TOTAL</td><td style="text-align:center">'+rows.reduce((a,r)=>a+r.n,0)+'</td><td style="text-align:right">S/ '+total.toLocaleString('es-PE',{maximumFractionDigits:0})+'</td><td style="text-align:right">100%</td></tr>'
+            +'</tbody></table></body></html>'
+          const w=window.open('','_blank','width=900,height=600')
+          if(w){w.document.write(html);w.document.close();w.onload=()=>{w.focus();w.print()}}
         }
 
         return (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={()=>setModalCosto(null)}>
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e=>e.stopPropagation()}>
-              <div className="bg-[#1F3864] px-6 py-4 rounded-t-2xl flex items-center justify-between">
+              <div className="bg-[#1F3864] px-6 py-4 rounded-t-2xl flex items-center justify-between flex-shrink-0">
                 <div>
                   <div className="text-white font-extrabold text-base">{LABELS[modalCosto]}</div>
-                  <div className="text-blue-300 text-xs mt-0.5">Detalle por UBO · Total: S/ {total.toLocaleString('es-PE',{maximumFractionDigits:0})}</div>
+                  <div className="text-blue-300 text-xs mt-0.5">Total: S/ {total.toLocaleString('es-PE',{maximumFractionDigits:0})} · {rows.length} UBOs</div>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={exportModalExcel} className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold">↓ Excel</button>
-                  <button onClick={exportModalPDF}   className="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg font-semibold">↓ PDF</button>
+                <div className="flex gap-2 items-center">
+                  <button onClick={exportModal} className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold">↓ Excel</button>
+                  <button onClick={exportPDF}   className="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg font-semibold">↓ PDF</button>
                   <button onClick={()=>setModalCosto(null)} className="text-white hover:text-red-300 text-xl font-bold ml-2">✕</button>
                 </div>
               </div>
               <div className="overflow-y-auto flex-1">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-slate-100">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase">UBO</th>
-                      <th className="px-4 py-3 text-center text-xs font-bold text-slate-600 uppercase">Intervenc.</th>
-                      <th className="px-4 py-3 text-right text-xs font-bold text-slate-600 uppercase">Monto (S/)</th>
-                      <th className="px-4 py-3 text-right text-xs font-bold text-slate-600 uppercase">% Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r,i) => (
-                      <tr key={r.ubo} className={i%2===0?'bg-white':'bg-slate-50'}>
-                        <td className="px-4 py-3 font-bold text-[#1F3864]">{r.ubo}</td>
-                        <td className="px-4 py-3 text-center text-slate-600">{r.count}</td>
-                        <td className="px-4 py-3 text-right font-extrabold text-[#1F3864]">
-                          S/ {r.valor.toLocaleString('es-PE',{maximumFractionDigits:0})}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-bold">
-                            {total>0?(r.valor/total*100).toFixed(1):0}%
-                          </span>
-                        </td>
+                {rows.length>0?(
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-slate-100">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase">UBO</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold text-slate-600 uppercase">Intervenc.</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold text-slate-600 uppercase">Monto (S/)</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold text-slate-600 uppercase">% Total</th>
                       </tr>
-                    ))}
-                    <tr className="bg-[#1F3864]">
-                      <td className="px-4 py-3 text-white font-extrabold">TOTAL</td>
-                      <td className="px-4 py-3 text-center text-white font-bold">{rows.reduce((a,r)=>a+r.count,0)}</td>
-                      <td className="px-4 py-3 text-right text-white font-extrabold">S/ {total.toLocaleString('es-PE',{maximumFractionDigits:0})}</td>
-                      <td className="px-4 py-3 text-right text-white font-bold">100%</td>
-                    </tr>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {rows.map((r,i)=>(
+                        <tr key={r.ubo} className={i%2===0?'bg-white':'bg-slate-50'}>
+                          <td className="px-4 py-3 font-bold text-[#1F3864]">{r.ubo}</td>
+                          <td className="px-4 py-3 text-center text-slate-600">{r.n}</td>
+                          <td className="px-4 py-3 text-right font-extrabold text-[#1F3864]">S/ {r.valor.toLocaleString('es-PE',{maximumFractionDigits:0})}</td>
+                          <td className="px-4 py-3 text-right"><span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-bold">{total>0?(r.valor/total*100).toFixed(1):0}%</span></td>
+                        </tr>
+                      ))}
+                      <tr className="bg-[#1F3864]">
+                        <td className="px-4 py-3 text-white font-extrabold">TOTAL</td>
+                        <td className="px-4 py-3 text-center text-white font-bold">{rows.reduce((a,r)=>a+r.n,0)}</td>
+                        <td className="px-4 py-3 text-right text-white font-extrabold">S/ {total.toLocaleString('es-PE',{maximumFractionDigits:0})}</td>
+                        <td className="px-4 py-3 text-right text-white font-bold">100%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                ):(
+                  <div className="text-center py-12 text-slate-400">
+                    <div className="text-4xl mb-2">💰</div>
+                    <p>Sin datos de {LABELS[modalCosto]} registrados</p>
+                    <p className="text-xs mt-1 text-slate-300">Solo existen datos para: ANCASH, LORETO, SAN MARTIN, TACNA</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
