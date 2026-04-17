@@ -1,163 +1,106 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import { procesarIntervenciones, procesarInventario, calcStats } from '../utils/data'
-
-// URL de la API — en producción (Docker) usa ruta relativa /api
-// En desarrollo local usa archivos manuales
-const API_BASE ='/api'
-const USE_API =true
-
-async function fetchExcelFromApi(endpoint) {
-  const res = await fetch(`${API_BASE}${endpoint}`)
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const buf = await res.arrayBuffer()
-  const wb = XLSX.read(buf, { type: 'array', cellDates: true })
-  const sn = wb.SheetNames[0]
-  return XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: null })
-}
 
 export function useData() {
   const [raw, setRaw] = useState([])
   const [inventario, setInventario] = useState([])
+  const [ordenesOT, setOrdenesOT] = useState([])
   const [loading, setLoading] = useState(false)
   const [loadingTxt, setLoadingTxt] = useState('')
   const [fileName, setFileName] = useState('')
-  const [error, setError] = useState(null)
-  const [lastUpdate, setLastUpdate] = useState(null)
 
   // Filtros
   const [curAnio, setCurAnio] = useState('TODOS')
-  const [curMes, setCurMes]   = useState('TODOS')
-  const [curUBO, setCurUBO]   = useState('TODOS')
-  const [curDep, setCurDep]   = useState('TODOS')
+  const [curMes, setCurMes] = useState('TODOS')
+  const [curUBO, setCurUBO] = useState('TODOS')
+  const [curDep, setCurDep] = useState('TODOS')
   const [curTipo, setCurTipo] = useState('TODOS')
 
-  // ── PROCESAR DATOS (común para API y archivos manuales) ──
-  const procesarDatos = useCallback((allData, invData) => {
+  // Cargar archivos
+  const loadFiles = useCallback(async (files) => {
+    setLoading(true)
+    let allData = [], invData = [], loaded = 0
+    const total = files.length
+
+    for (const file of files) {
+      setLoadingTxt(`Leyendo ${file.name} (${loaded + 1}/${total})...`)
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array', cellDates: true })
+      const sn = wb.SheetNames[0]
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: null })
+      const cols = Object.keys(rows[0] || {}).map(k => k.toUpperCase())
+      const esInventario = cols.includes('CODIGO') && cols.includes('TIPO_UNIDAD') && cols.includes('FLOTA')
+      const esOT = cols.some(c => c.toUpperCase().includes('NUMERO OT') || c.toUpperCase().includes('TIPO OT'))
+      if (esInventario) invData = invData.concat(rows)
+      else if (esOT) {
+        const ots = rows.map(r => ({
+          numero:  String(r['NUMERO OT']||''),
+          codigo:  String(r['CODIGO GEOVIVIENDA']||'').trim(),
+          ubo:     String(r['UBO']||'').toUpperCase(),
+          tipo:    String(r['TIPO OT']||''),
+          titulo:  String(r['TITULO']||''),
+          entidad: String(r['ENTIDAD']||''),
+          fecha:   String(r['FECHA GENERADA']||''),
+          area:    String(r['AREA']||''),
+          estado:  String(r['ESTADO OT']||''),
+        })).filter(r => r.codigo && r.codigo !== 'null')
+        setOrdenesOT(ots)
+      }
+      else allData = allData.concat(rows)
+      loaded++
+    }
+
+    setLoadingTxt(`Procesando ${allData.length} registros...`)
+    await new Promise(r => setTimeout(r, 50))
+
     const intervenciones = procesarIntervenciones(allData)
     const codigosEnUso = new Set(intervenciones.flatMap(r => r.maquinas.map(m => m.cod)))
+    // Mapear fichas por código de equipo
     const fichasPorCodigo = {}
     intervenciones.forEach(r => {
       r.maquinas.forEach(m => {
         if (!fichasPorCodigo[m.cod]) fichasPorCodigo[m.cod] = []
-        fichasPorCodigo[m.cod].push({
-          ficha: r.ficha, num: r.num, ubo: r.ubo, dep: r.dep,
-          estado: r.estado, enlace_ficha: r.enlace_ficha,
-          f_ini: r.f_ini, f_fin: r.f_fin
-        })
+        fichasPorCodigo[m.cod].push({ ficha: r.ficha, num: r.num, ubo: r.ubo, dep: r.dep, estado: r.estado, enlace_ficha: r.enlace_ficha, f_ini: r.f_ini, f_fin: r.f_fin })
       })
     })
     const inv = invData.length > 0
-      ? procesarInventario(invData, codigosEnUso).map(e => ({
-          ...e, fichas_intervencion: fichasPorCodigo[e.codigo] || []
-        }))
-      : inventario.map(e => ({
-          ...e,
-          en_uso: codigosEnUso.has(e.codigo),
-          disponible: !codigosEnUso.has(e.codigo),
-          estado_uso: codigosEnUso.has(e.codigo) ? 'EN USO' : 'DISPONIBLE',
-          fichas_intervencion: fichasPorCodigo[e.codigo] || []
-        }))
+      ? procesarInventario(invData, codigosEnUso).map(e => ({ ...e, fichas_intervencion: fichasPorCodigo[e.codigo] || [] }))
+      : inventario.map(e => ({ ...e, en_uso: codigosEnUso.has(e.codigo), disponible: !codigosEnUso.has(e.codigo), estado_uso: codigosEnUso.has(e.codigo) ? 'EN USO' : 'DISPONIBLE', fichas_intervencion: fichasPorCodigo[e.codigo] || [] }))
 
     setRaw(intervenciones)
     if (inv.length > 0) setInventario(inv)
+    setFileName(files.length > 1 ? `${files.length} archivos` : files[0].name)
+    setLoading(false)
   }, [inventario])
 
-  // ── CARGAR DESDE API (Docker) ──────────────────────────
-  const loadFromApi = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      setLoadingTxt('Conectando con el servidor...')
-      // Verificar health del API
-      const health = await fetch(`${API_BASE}/health`)
-      if (!health.ok) throw new Error('API no disponible')
-      const info = await health.json()
-
-      setLoadingTxt('Descargando intervenciones...')
-      const intData = await fetchExcelFromApi('/data/intervenciones')
-
-      setLoadingTxt('Descargando estado de maquinaria...')
-      const maqData = await fetchExcelFromApi('/data/maquinaria')
-
-      setLoadingTxt(`Procesando ${intData.length} registros...`)
-      await new Promise(r => setTimeout(r, 50))
-
-      procesarDatos(intData, maqData)
-      setFileName(`Servidor · ${info.ultima_actualizacion || 'datos actuales'}`)
-      setLastUpdate(info.ultima_actualizacion || null)
-    } catch (err) {
-      setError(`No se pudo conectar con la API: ${err.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }, [procesarDatos])
-
-  // ── CARGAR DESDE ARCHIVOS MANUALES ────────────────────
-  const loadFiles = useCallback(async (files) => {
-    setLoading(true)
-    setError(null)
-    let allData = [], invData = [], loaded = 0
-    const total = files.length
-    try {
-      for (const file of files) {
-        setLoadingTxt(`Leyendo ${file.name} (${loaded + 1}/${total})...`)
-        const buf = await file.arrayBuffer()
-        const wb = XLSX.read(buf, { type: 'array', cellDates: true })
-        const sn = wb.SheetNames[0]
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: null })
-        const cols = Object.keys(rows[0] || {}).map(k => k.toUpperCase())
-        const esInventario = cols.includes('CODIGO') && cols.includes('TIPO_UNIDAD') && cols.includes('FLOTA')
-        if (esInventario) invData = invData.concat(rows)
-        else allData = allData.concat(rows)
-        loaded++
-      }
-      setLoadingTxt(`Procesando ${allData.length} registros...`)
-      await new Promise(r => setTimeout(r, 50))
-      procesarDatos(allData, invData)
-      setFileName(files.length > 1 ? `${files.length} archivos` : files[0].name)
-    } catch (err) {
-      setError(`Error leyendo archivo: ${err.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }, [procesarDatos])
-
-  // ── AUTO-CARGAR DESDE API AL INICIAR ──────────────────
-  useEffect(() => {
-    if (USE_API) {
-      loadFromApi()
-    }
-  }, []) // eslint-disable-line
-
   const reset = useCallback(() => {
-    setRaw([]); setInventario([]); setFileName(''); setError(null); setLastUpdate(null)
-    setCurAnio('TODOS'); setCurMes('TODOS'); setCurUBO('TODOS')
-    setCurDep('TODOS'); setCurTipo('TODOS')
+    setRaw([]); setInventario([]); setOrdenesOT([]); setFileName('')
+    setCurAnio('TODOS'); setCurMes('TODOS'); setCurUBO('TODOS'); setCurDep('TODOS'); setCurTipo('TODOS')
   }, [])
 
-  // ── FILTRADO ──────────────────────────────────────────
+  // Filtrado
   const filtered = useMemo(() => raw.filter(r => {
     if (curAnio !== 'TODOS' && r.anio !== curAnio) return false
-    if (curMes  !== 'TODOS' && r.mes  !== curMes)  return false
-    if (curUBO  !== 'TODOS' && r.ubo  !== curUBO)  return false
-    if (curDep  !== 'TODOS' && r.dep  !== curDep)  return false
-    if (curTipo !== 'TODOS' && r.tipo !== curTipo)  return false
+    if (curMes !== 'TODOS' && r.mes !== curMes) return false
+    if (curUBO !== 'TODOS' && r.ubo !== curUBO) return false
+    if (curDep !== 'TODOS' && r.dep !== curDep) return false
+    if (curTipo !== 'TODOS' && r.tipo !== curTipo) return false
     return true
   }), [raw, curAnio, curMes, curUBO, curDep, curTipo])
 
   const stats = useMemo(() => calcStats(filtered), [filtered])
 
-  const ubos  = useMemo(() => [...new Set(raw.map(r => r.ubo).filter(Boolean))].sort(), [raw])
-  const deps  = useMemo(() => [...new Set(raw.map(r => r.dep).filter(Boolean))].sort(), [raw])
+  // Opciones para selects
+  const ubos = useMemo(() => [...new Set(raw.map(r => r.ubo).filter(Boolean))].sort(), [raw])
+  const deps = useMemo(() => [...new Set(raw.map(r => r.dep).filter(Boolean))].sort(), [raw])
   const anios = useMemo(() => [...new Set(raw.map(r => r.anio).filter(Boolean))].sort(), [raw])
 
   return {
-    raw, filtered, inventario, loading, loadingTxt, fileName, stats,
-    ubos, deps, anios, error, lastUpdate,
+    raw, filtered, inventario, ordenesOT, loading, loadingTxt, fileName, stats,
+    ubos, deps, anios,
     curAnio, curMes, curUBO, curDep, curTipo,
     setCurAnio, setCurMes, setCurUBO, setCurDep, setCurTipo,
-    loadFiles, loadFromApi, reset,
-    useApi: USE_API,
+    loadFiles, reset,
   }
 }

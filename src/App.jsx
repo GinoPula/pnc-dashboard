@@ -159,7 +159,7 @@ export default function App() {
           <h1 className="text-lg sm:text-xl font-extrabold text-slate-700 dark:text-slate-200 mb-2">Dashboard PNC · Maquinarias</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-5 sm:mb-6 leading-relaxed">
             Carga el Excel exportado del sistema Main Maquinarias<br/>
-            <span className="text-xs">Puedes cargar varios archivos · También el inventario de maquinarias</span>
+            <span className="text-xs">Carga: Excel intervenciones + inventario maquinarias + (opcional) órdenes de trabajo</span>
           </p>
           <button className="bg-[#1F3864] text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-blue-800 transition-colors w-full sm:w-auto"
             onClick={e=>{e.stopPropagation();document.getElementById('fi').click()}}>
@@ -264,7 +264,7 @@ export default function App() {
         {tab==='detalle'      && <Detalle      filtered={data.filtered} raw={data.raw}/>}
         {tab==='maquinaria'   && <Maquinaria   inventario={data.inventario} raw={data.raw} curUBO={data.curUBO}/>}
         {tab==='mapa'         && <MapaUBOs     filtered={data.filtered} inventario={data.inventario} raw={data.raw}/>}
-        {tab==='activos'      && <GestionActivos inventario={data.inventario} raw={data.raw}/>}
+        {tab==='activos'      && <GestionActivos inventario={data.inventario} raw={data.raw} ordenesOT={data.ordenesOT||[]}/>}
         {tab==='distribucion' && <Distribucion filtered={data.filtered} inventario={data.inventario} raw={data.raw}/>}
       </div>
 
