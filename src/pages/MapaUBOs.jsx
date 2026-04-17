@@ -138,13 +138,7 @@ export default function MapaUBOs({ filtered, inventario, raw }) {
         </div>
       `
       const marker = L.marker([r.lat, r.lng], { icon })
-      marker.bindTooltip(popup, { 
-        permanent: false, 
-        direction: 'top', 
-        offset: [0, -8],
-        opacity: 0.97,
-        className: 'pnc-tooltip'
-      })
+      marker.bindPopup(popup, { maxWidth:320 })
       marker.addTo(map)
       markersRef.current.push(marker)
     })
@@ -173,19 +167,7 @@ export default function MapaUBOs({ filtered, inventario, raw }) {
     if (!document.getElementById('pnc-map-style')) {
       const style = document.createElement('style')
       style.id = 'pnc-map-style'
-      style.textContent = `
-        @keyframes pnc-pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:0.7}}
-        .pnc-tooltip {
-          background: white !important;
-          border: 1px solid #E2E8F0 !important;
-          border-radius: 8px !important;
-          box-shadow: 0 4px 16px rgba(0,0,0,0.15) !important;
-          padding: 0 !important;
-          max-width: 320px !important;
-        }
-        .pnc-tooltip::before { display: none !important; }
-        .leaflet-tooltip-top.pnc-tooltip::before { display: none !important; }
-      `
+      style.textContent = `@keyframes pnc-pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:0.7}}`
       document.head.appendChild(style)
     }
   }, [ready, intsMostrar, uboSel, base])
@@ -216,14 +198,14 @@ export default function MapaUBOs({ filtered, inventario, raw }) {
 
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         {[
-          {l:'Total',        v:stats.total, c:'text-[#1F3864]', b:'border-t-[#1F3864]'},
-          {l:'Ejecutadas',   v:stats.ejec,  c:'text-emerald-700', b:'border-t-emerald-500'},
-          {l:'En Ejecución', v:stats.enEj,  c:'text-yellow-600', b:'border-t-yellow-400'},
-          {l:'Programadas',  v:stats.prog,  c:'text-blue-700', b:'border-t-blue-500'},
-          {l:'Paralizadas',  v:stats.para,  c:'text-red-700', b:'border-t-red-500'},
-          {l:'M³ ejecutado', v:fmtN(stats.m3), c:'text-purple-700', b:'border-t-purple-500'},
+          {l:'Total',        v:stats.total, c:'text-[#1F3864]'},
+          {l:'Ejecutadas',   v:stats.ejec,  c:'text-emerald-700'},
+          {l:'En Ejecución', v:stats.enEj,  c:'text-yellow-600'},
+          {l:'Programadas',  v:stats.prog,  c:'text-blue-700'},
+          {l:'Paralizadas',  v:stats.para,  c:'text-red-700'},
+          {l:'M³ ejecutado', v:fmtN(stats.m3), c:'text-purple-700'},
         ].map(({l,v,c}) => (
-          <div key={l} className={`bg-white border border-slate-200 border-t-4 ${b} rounded-xl p-2 text-center shadow-sm`}>
+          <div key={l} className="bg-white border border-slate-200 rounded-xl p-2 text-center shadow-sm">
             <div className={`text-xl font-extrabold ${c}`}>{v}</div>
             <div className="text-xs text-slate-400 mt-0.5">{l}</div>
           </div>

@@ -83,7 +83,7 @@ function Resumen({ filtered, stats }) {
 // ── APP ───────────────────────────────────────────────
 export default function App() {
   const data = useData()
-  const [tab, setTab] = useState('gerencial')
+  const [tab, setTab] = useState('mapa')
   const [menuOpen, setMenuOpen] = useState(false)
   const [installPrompt, setInstallPrompt] = useState(null)
   const [showInstall, setShowInstall] = useState(false)
@@ -105,15 +105,6 @@ export default function App() {
 
   // Mostrar login si no hay usuario
   if (!currentUser) return <Login onLogin={handleLogin}/>
-
-  // Switch to mapa tab once data is loaded
-  const prevRawLen = useRef(0)
-  useEffect(() => {
-    if (data.raw.length > 0 && prevRawLen.current === 0) {
-      setTab('mapa')
-    }
-    prevRawLen.current = data.raw.length
-  }, [data.raw.length])
 
   const isAdmin = currentUser.role === 'admin'
 
