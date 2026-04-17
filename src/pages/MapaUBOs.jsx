@@ -222,7 +222,7 @@ export default function MapaUBOs({ filtered, inventario, raw }) {
           {l:'Programadas',  v:stats.prog,  c:'text-blue-700', b:'border-t-blue-500'},
           {l:'Paralizadas',  v:stats.para,  c:'text-red-700', b:'border-t-red-500'},
           {l:'M³ ejecutado', v:fmtN(stats.m3), c:'text-purple-700', b:'border-t-purple-500'},
-        ].map(({l,v,c}) => (
+        ].map(({l,v,c,b}) => (
           <div key={l} className={`bg-white border border-slate-200 border-t-4 ${b} rounded-xl p-2 text-center shadow-sm`}>
             <div className={`text-xl font-extrabold ${c}`}>{v}</div>
             <div className="text-xs text-slate-400 mt-0.5">{l}</div>
