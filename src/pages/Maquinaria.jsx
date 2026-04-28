@@ -402,7 +402,7 @@ export default function Maquinaria({ inventario, curUBO, raw }) {
               {[
                 {l:'Operativos',    v:operativo,   pct:total?(operativo/total*100).toFixed(1):0,   c:'bg-green-50 border-green-300', vc:'text-green-700'},
                 {l:'Inoperativos',  v:inoperativo, pct:total?(inoperativo/total*100).toFixed(1):0, c:'bg-red-50 border-red-300',     vc:'text-red-700'},
-                {l:'Disponibles',   v:disp,        pct:total?(disp/total*100).toFixed(1):0,        c:'bg-blue-50 border-blue-300',   vc:'text-blue-700'},
+                {l:'Vehículos de Apoyo',   v:disp,        pct:total?(disp/total*100).toFixed(1):0,        c:'bg-blue-50 border-blue-300',   vc:'text-blue-700'},
                 {l:'En uso activo', v:enUso,       pct:total?(enUso/total*100).toFixed(1):0,       c:'bg-amber-50 border-amber-300', vc:'text-amber-700'},
               ].map(({l,v,pct,c,vc})=>(
                 <div key={l} className={`border rounded-xl p-4 ${c}`}>
