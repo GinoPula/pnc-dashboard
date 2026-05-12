@@ -22,6 +22,10 @@ export default function Detalle({ filtered, raw }) {
   const [cierreFiltro, setCierreFiltro] = useState('TODOS')
   const [panel, setPanel]         = useState(null)
   const [showMeses, setShowMeses] = useState(false)
+  // ── FILTRO POR RANGO DE FECHAS ──
+  const [fechaDesde, setFechaDesde] = useState('')
+  const [fechaHasta, setFechaHasta] = useState('')
+  const [fechaFiltroActivo, setFechaFiltroActivo] = useState(false)
 
   // Meses disponibles en los datos
   const mesesDisp = useMemo(() => {
@@ -29,6 +33,33 @@ export default function Detalle({ filtered, raw }) {
     filtered.forEach(r => { if (r.mes) s.add(r.mes) })
     return [...s].sort()
   }, [filtered])
+
+  // ── HELPER: parsear fecha DD/MM/YYYY o YYYY-MM-DD ──
+  const pd = (str) => {
+    if (!str) return null
+    const m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+    if (m) return new Date(+m[3], +m[2]-1, +m[1])
+    const m2 = str.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (m2) return new Date(+m2[1], +m2[2]-1, +m2[3])
+    return null
+  }
+
+  // ── RESUMEN por rango de fechas (contadores de los 3 cards) ──
+  const resumenFechas = useMemo(() => {
+    if (!fechaFiltroActivo || !fechaDesde || !fechaHasta) return null
+    const dDesde = pd(fechaDesde)
+    const dHasta = pd(fechaHasta)
+    const ejecutadas = filtered.filter(r => {
+      const f = pd(r.f_fin); return f && f >= dDesde && f <= dHasta && r.estado === 'EJECUTADA'
+    })
+    const enEjecucion = filtered.filter(r => {
+      const f = pd(r.f_ini); return f && f >= dDesde && f <= dHasta && r.estado.normalize('NFC') === 'EN EJECUCIÓN'
+    })
+    const programadas = filtered.filter(r => {
+      const f = pd(r.f_ini); return f && f >= dDesde && f <= dHasta && r.estado_g === 'PROGRAMADA'
+    })
+    return { ejecutadas, enEjecucion, programadas }
+  }, [filtered, fechaDesde, fechaHasta, fechaFiltroActivo])
 
   const toggleEst = (est) => {
     setEstSel(prev => {
@@ -63,6 +94,18 @@ export default function Detalle({ filtered, raw }) {
     if (mesesSel.size > 0) r = r.filter(x => mesesSel.has(x.mes))
     if (cierreFiltro === 'CON') r = r.filter(x => x.tiene_cierre)
     if (cierreFiltro === 'SIN') r = r.filter(x => !x.tiene_cierre)
+    // ── Filtro por rango de fechas ──
+    if (fechaFiltroActivo && fechaDesde && fechaHasta) {
+      const dD = pd(fechaDesde)
+      const dH = pd(fechaHasta)
+      r = r.filter(x => {
+        const est = x.estado.normalize('NFC')
+        if (est === 'EJECUTADA')   { const f = pd(x.f_fin); return f && f >= dD && f <= dH }
+        if (est === 'EN EJECUCIÓN'){ const f = pd(x.f_ini); return f && f >= dD && f <= dH }
+        if (x.estado_g === 'PROGRAMADA') { const f = pd(x.f_ini); return f && f >= dD && f <= dH }
+        return false
+      })
+    }
     if (busq) {
       const q = busq.toLowerCase()
       r = r.filter(x => [x.num,x.ubo,x.dep,x.prov,x.dist,x.tipo,x.estado,x.ficha,x.maq_str,x.marco].join(' ').toLowerCase().includes(q))
@@ -77,7 +120,7 @@ export default function Detalle({ filtered, raw }) {
       })
     }
     return r
-  }, [filtered, estSel, mesesSel, cierreFiltro, busq, sortBy])
+  }, [filtered, estSel, mesesSel, cierreFiltro, busq, sortBy, fechaDesde, fechaHasta, fechaFiltroActivo])
 
   // ── EXPORT EXCEL COMPLETO ─────────────────────────────
   const exportExcel = useCallback(() => {
@@ -230,6 +273,69 @@ export default function Detalle({ filtered, raw }) {
                 {MESES[m]||m}
               </button>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Filtro por rango de fechas */}
+      <div className="mb-3 border border-slate-200 rounded-xl bg-slate-50 p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xs font-semibold text-[#1F3864]">📅 Filtrar por rango de fechas</span>
+          {fechaFiltroActivo && (
+            <button onClick={() => { setFechaDesde(''); setFechaHasta(''); setFechaFiltroActivo(false) }}
+              className="ml-auto text-xs text-slate-500 hover:text-red-600 border border-slate-300 rounded px-2 py-0.5">
+              ✕ Limpiar fechas
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2 items-end">
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] text-slate-500 font-medium">Fecha inicio</label>
+            <input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)}
+              className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:border-[#1F3864]"/>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] text-slate-500 font-medium">Fecha fin</label>
+            <input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)}
+              className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:border-[#1F3864]"/>
+          </div>
+          <button
+            disabled={!fechaDesde || !fechaHasta}
+            onClick={() => setFechaFiltroActivo(true)}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1F3864] text-white hover:bg-[#2E5EAA] disabled:opacity-40 disabled:cursor-not-allowed">
+            🔍 Aplicar
+          </button>
+        </div>
+
+        {/* Resumen: 3 cards con contadores */}
+        {fechaFiltroActivo && resumenFechas && (
+          <div className="mt-3">
+            <div className="text-[10px] text-slate-500 mb-1.5 font-medium">
+              Período: {fechaDesde.split('-').reverse().join('/')} al {fechaHasta.split('-').reverse().join('/')}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <button onClick={() => { setEstSel(new Set(['EJECUTADA'])); setFechaFiltroActivo(true) }}
+                className="bg-white border border-emerald-200 rounded-lg p-2 text-left hover:bg-emerald-50 transition-colors">
+                <div className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide mb-0.5">✓ Ejecutadas</div>
+                <div className="text-2xl font-bold text-emerald-800 leading-none">{resumenFechas.ejecutadas.length}</div>
+                <div className="text-[9px] text-slate-400 mt-0.5">por fecha fin</div>
+              </button>
+              <button onClick={() => { setEstSel(new Set(['EN EJECUCIÓN'])); setFechaFiltroActivo(true) }}
+                className="bg-white border border-blue-200 rounded-lg p-2 text-left hover:bg-blue-50 transition-colors">
+                <div className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide mb-0.5">▶ En ejecución</div>
+                <div className="text-2xl font-bold text-blue-800 leading-none">{resumenFechas.enEjecucion.length}</div>
+                <div className="text-[9px] text-slate-400 mt-0.5">por fecha inicio</div>
+              </button>
+              <button onClick={() => { setEstSel(new Set(['PROGRAMADA'])); setFechaFiltroActivo(true) }}
+                className="bg-white border border-amber-200 rounded-lg p-2 text-left hover:bg-amber-50 transition-colors">
+                <div className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-0.5">◷ Programadas</div>
+                <div className="text-2xl font-bold text-amber-800 leading-none">{resumenFechas.programadas.length}</div>
+                <div className="text-[9px] text-slate-400 mt-0.5">por fecha inicio</div>
+              </button>
+            </div>
+            <div className="mt-1.5 text-[9px] text-slate-400">
+              💡 Clic en un estado para filtrar la tabla · Ejecutadas = fecha fin en rango · En ejecución/Programadas = fecha inicio en rango
+            </div>
           </div>
         )}
       </div>
